@@ -14,7 +14,15 @@ Returns a bearer access token and a user object. Store tokens using Android's se
 
 ## Change temporary password
 
-The web session endpoint is `POST /api/auth/change-password`. Mobile integration should use an authenticated mobile password-change endpoint before enabling panic actions; the current bearer-token API should be extended and tested for that flow before production rollout. Accounts marked `must_change_password=true` must not be treated as fully activated.
+`POST /api/mobile/auth/change-password`
+
+Header: `Authorization: Bearer <access_token>`
+
+```json
+{"current_password":"temporary-password","new_password":"a-new-strong-password"}
+```
+
+New passwords must contain at least 12 characters. A client marked `must_change_password=true` should call this endpoint after login and before enabling panic actions. The API change is implemented, but must still be tested with the actual Android build and production database before rollout.
 
 ## Submit panic
 
