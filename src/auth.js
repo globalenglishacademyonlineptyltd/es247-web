@@ -30,6 +30,10 @@ export async function authenticate(req, res, next) {
     const result = await pool.query('SELECT id,email,role,company_id,display_name,must_change_password,active FROM users WHERE id=$1', [claims.sub]);
     const user = result.rows[0];
     if (!user || !user.active) { clearSession(res); return res.status(401).json({ error: 'This account is inactive.' }); }
+    if (user.role !== 'master_admin' && user.company_id) {
+      const company = await pool.query('SELECT archived_at FROM companies WHERE id=$1', [user.company_id]);
+      if (!company.rowCount || company.rows[0].archived_at) return res.status(403).json({ error: 'Your company account is archived or unavailable. Contact the master administrator.' });
+    }
     req.user = user;
     next();
   } catch (err) {
