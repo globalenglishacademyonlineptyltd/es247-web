@@ -55,6 +55,17 @@ app.post('/api/mobile/auth/login',limiter,async(req,res,next)=>{
   res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:28800,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
+app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
+ try{
+  if(req.user.role!=='client')return res.status(403).json({error:'Mobile password changes are for client accounts only.'});
+  const p=z.object({current_password:z.string().min(1).max(128),new_password:password}).safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'New password must contain at least 12 characters.'});
+  const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
+  if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
+  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
+  res.json({ok:true,message:'Password updated successfully.'});
+ }catch(e){next(e);}
+});
 app.post('/api/auth/logout',(_req,res)=>{clearSession(res);res.json({ok:true});});
 app.get('/api/me',authenticate,(req,res)=>res.json({user:req.user}));
 app.post('/api/auth/change-password',authenticate,async(req,res,next)=>{
