@@ -33,6 +33,20 @@ const companyInput = z.object({
  vat_number:z.string().trim().max(80).optional().nullable()
 });
 const statuses = ['Acknowledged','Acknowledged - No Responder Available','Controller Responding','Response Dispatched','Response On Site','Incident Resolved'];
+const htmlEscape = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function notifyCompanyOnPanic(companyId, incident, locationText) {
+ if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return;
+ try {
+  const r=await pool.query("SELECT contact_email AS email FROM companies WHERE id=$1 UNION SELECT email FROM users WHERE company_id=$1 AND role='controller' AND active=true",[companyId]);
+  const recipients=[...new Set(r.rows.map(x=>x.email).filter(Boolean))];
+  if(!recipients.length)return;
+  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({
+   from:process.env.RESEND_FROM_EMAIL,to:recipients,subject:'ES 24/7 PANIC ALERT — Incident #'+incident.id,
+   html:'<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142137"><h2 style="color:#b42332">Emergency panic alert received</h2><p><strong>Incident:</strong> #'+htmlEscape(incident.id)+'</p><p><strong>Type:</strong> '+htmlEscape(incident.incident_type)+'</p><p><strong>Received:</strong> '+htmlEscape(incident.panic_at)+'</p><p><strong>Location:</strong> '+htmlEscape(locationText||'Location unavailable')+'</p><p>Sign in to the ES 24/7 company workspace to acknowledge and manage this incident.</p></div>'
+  })});
+  if(!response.ok)console.error('Panic notification email provider returned a non-success response.');
+ } catch(e) { console.error('Panic notification could not be sent:',e.message); }
+}
 
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
 app.post('/api/auth/login',limiter,async(req,res,next)=>{
@@ -185,7 +199,7 @@ app.post('/api/client/panic',requireRole('client'),async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'Choose a valid panic type.'});
   const c=await db.query('SELECT id,company_id FROM clients WHERE user_id=$1',[req.user.id]);if(!c.rowCount||Number(c.rows[0].company_id)!==Number(req.user.company_id))return res.status(403).json({error:'No company is assigned to this client.'});
   await db.query('BEGIN');const d=p.data;const i=await db.query("INSERT INTO incidents(company_id,client_id,incident_type,status,latitude,longitude,location_text) VALUES($1,$2,$3,'Panic Received',$4,$5,$6) RETURNING id,incident_type,status,panic_at",[req.user.company_id,c.rows[0].id,d.incident_type,d.latitude??null,d.longitude??null,d.location_text||null]);
-  await db.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Panic Received','Panic alert submitted by client.')",[i.rows[0].id,req.user.id]);await db.query('COMMIT');res.status(201).json({incident:i.rows[0],message:'Panic alert received.'});
+  await db.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Panic Received','Panic alert submitted by client.')",[i.rows[0].id,req.user.id]);await db.query('COMMIT');void notifyCompanyOnPanic(req.user.company_id,i.rows[0],d.location_text||null);res.status(201).json({incident:i.rows[0],message:'Panic alert received.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 app.get('/api/client/incidents',requireRole('client'),async(req,res,next)=>{try{const r=await pool.query('SELECT i.id,i.incident_type,i.status,i.location_text,i.panic_at,i.updated_at FROM incidents i JOIN clients c ON c.id=i.client_id WHERE c.user_id=$1 ORDER BY i.panic_at DESC LIMIT 100',[req.user.id]);res.json({incidents:r.rows});}catch(e){next(e);}});
