@@ -31,7 +31,7 @@ function initMasterMap(companies=[]){
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
  const standard=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{subdomains:'abc',maxZoom:19,attribution:'© OpenStreetMap contributors'});
  const standardFallback=L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors, Tiles: HOT'});
- const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'});
+ const satellite=L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CorrectedReflectance_TrueColor/default/2026-10-22/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',{maxZoom:9,attribution:'Imagery courtesy NASA EOSDIS GIBS'});
  let active='standard', fallbackUsed=false;
  standard.on('tileerror',()=>{if(active==='standard'&&!fallbackUsed){fallbackUsed=true;if(map.hasLayer(standard))map.removeLayer(standard);standardFallback.addTo(map);}});
  standard.addTo(map);
