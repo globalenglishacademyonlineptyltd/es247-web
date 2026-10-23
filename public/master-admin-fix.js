@@ -8,7 +8,10 @@
   function isMaster(){return q('#role-label')?.textContent?.trim().toLowerCase().replace(/\s+/g,'_')==='master_admin'||q('#role-label')?.textContent?.toLowerCase().includes('master admin');}
   function masterNav(page='dashboard'){
     const nav=q('#nav');if(!nav)return;
-    nav.innerHTML=[['dashboard','Dashboard'],['add-company','Add Company'],['archive','Archived Companies']].map(([id,label])=>`<button data-master-page="${id}" class="${page===id?'active':''}"><span>${label}</span></button>`).join('');
+    const desired=[['dashboard','Dashboard'],['add-company','Add Company'],['archive','Archived Companies']];
+    const current=[...nav.querySelectorAll('[data-master-page]')].map(b=>[b.dataset.masterPage,b.textContent.trim()]);
+    if(JSON.stringify(current)!==JSON.stringify(desired)) nav.innerHTML=desired.map(([id,label])=>`<button data-master-page="${id}" class="${page===id?'active':''}"><span>${label}</span></button>`).join('');
+    else [...nav.querySelectorAll('[data-master-page]')].forEach(b=>b.classList.toggle('active',b.dataset.masterPage===page));
     qa('[data-master-page]').forEach(b=>b.onclick=()=>masterNavigate(b.dataset.masterPage));
   }
   async function masterNavigate(page){
