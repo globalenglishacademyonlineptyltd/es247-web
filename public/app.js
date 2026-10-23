@@ -29,8 +29,8 @@ function initMasterMap(companies=[]){
  if(state.map){state.map.remove();state.map=null;}
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
- const standard=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO'});
- const standardFallback=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Sources: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NRCan, Esri Japan, METI, Esri China (Hong Kong), NGCC, and the GIS User Community'});
+ const standard=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{subdomains:'abc',maxZoom:19,attribution:'© OpenStreetMap contributors'});
+ const standardFallback=L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors, Tiles: HOT'});
  const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'});
  let active='standard', fallbackUsed=false;
  standard.on('tileerror',()=>{if(active==='standard'&&!fallbackUsed){fallbackUsed=true;if(map.hasLayer(standard))map.removeLayer(standard);standardFallback.addTo(map);}});
