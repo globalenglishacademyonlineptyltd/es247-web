@@ -38,8 +38,12 @@
 <div id="toast" class="toast hidden" role="status"></div><dialog id="incident-dialog" class="dialog"><div class="dialog-head"><div><p class="eyebrow">INCIDENT DETAILS</p><h2 id="dialog-title">Incident</h2></div><button class="btn outline small" id="dialog-close">Close</button></div><div id="dialog-body" class="dialog-body"></div></dialog></main>
 <script>
 (function(){
- function loadApp(){var app=document.createElement('script');app.src='/app.js?v=mapfix3';document.body.appendChild(app);}
- function loadFallback(){if(window.L){loadApp();return;}var fallback=document.createElement('script');fallback.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';fallback.onload=loadApp;fallback.onerror=function(){var map=document.getElementById('master-map');if(map)map.innerHTML='<div style="padding:24px;color:#d9e5f2">The map library could not load. Please check your connection and refresh.</div>';};document.head.appendChild(fallback);}
- var primary=document.createElement('script');primary.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';primary.onload=loadApp;primary.onerror=loadFallback;document.head.appendChild(primary);
+ var appStarted=false;
+ function loadApp(){if(appStarted)return;appStarted=true;var app=document.createElement('script');app.src='/app.js?v=login-independent-1';app.onerror=function(){var e=document.getElementById('login-error');if(e)e.textContent='The sign-in application could not load. Please refresh the page.';};document.body.appendChild(app);}
+ function showMapLoadError(){var map=document.getElementById('master-map');if(map)map.innerHTML='<div style="padding:24px;color:#d9e5f2">The map library could not load. Sign-in is still available; refresh later to retry the map.</div>';}
+ function loadFallback(){if(window.L)return;var fallback=document.createElement('script');fallback.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';fallback.onload=function(){};fallback.onerror=showMapLoadError;document.head.appendChild(fallback);}
+ /* The sign-in application must never depend on external map/CDN availability. */
+ loadApp();
+ var primary=document.createElement('script');primary.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';primary.onerror=loadFallback;document.head.appendChild(primary);
 })();
 </script></body></html>
