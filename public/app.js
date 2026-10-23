@@ -25,20 +25,66 @@ async function navigate(page){state.page=page;renderNav();$('#page-title').textC
 function masterOperationsMap(d){return '<div class="card"><div class="section-head"><div><p class="eyebrow">MASTER ADMIN</p><h2>Operations Map</h2><p class="muted">Company locations and coverage overview.</p></div><div><button id="master-standard" class="btn primary small">Standard</button> <button id="master-satellite" class="btn outline small">Satellite</button></div></div><div id="master-map" class="map"></div><p class="tiny">Company markers appear when a company has saved GPS coordinates. The map remains available even when no companies have coordinates.</p></div>';}
 function initMasterMap(companies=[]){
  const el=$('#master-map');if(!el)return;
- if(!window.L){el.innerHTML='<div style="padding:24px;color:#d9e5f2">Map library did not load. Please refresh the dashboard.</div>';return;}
+ if(!window.L){el.innerHTML='<div style="padding:24px;color:#d9e5f2">Interactive map library did not load. Please refresh the dashboard.</div>';return;}
  if(state.map){state.map.remove();state.map=null;}
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
- const standard=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap contributors © CARTO'});
- const standardFallback=L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors, Tiles: HOT'});
- const imageryDate=new Date(Date.now()-86400000).toISOString().slice(0,10);
- const satellite=L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CorrectedReflectance_TrueColor/default/'+imageryDate+'/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',{maxZoom:9,attribution:'Imagery courtesy NASA EOSDIS GIBS'});
- let active='standard', fallbackUsed=false;
- standard.on('tileerror',()=>{if(active==='standard'&&!fallbackUsed){fallbackUsed=true;if(map.hasLayer(standard))map.removeLayer(standard);standardFallback.addTo(map);}});
+ // Use direct, documented tile endpoints instead of the previous CARTO/NASA layers
+ // that were displaying provider error tiles in production.
+ const standard=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+   maxZoom:19,attribution:'© OpenStreetMap contributors'
+ });
+ const standardFallback=L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{
+   maxZoom:19,attribution:'© OpenStreetMap contributors, HOT'
+ });
+ const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+   maxZoom:19,attribution:'Imagery © Esri and its contributors'
+ });
+ let active='standard',fallbackUsed=false,standardErrorCount=0,satelliteErrorCount=0;
+ const showMapError=message=>{
+   let note=el.querySelector('.map-provider-error');
+   if(!note){note=document.createElement('div');note.className='map-provider-error';note.style.cssText='position:absolute;z-index:1000;left:12px;right:12px;bottom:12px;background:#111827ee;color:#fff;padding:10px 12px;border-radius:8px;font-size:13px';el.appendChild(note);}
+   note.textContent=message;
+ };
+ standard.on('tileerror',()=>{
+   if(active!=='standard')return;
+   standardErrorCount++;
+   if(!fallbackUsed&&standardErrorCount>=2){
+     fallbackUsed=true;
+     if(map.hasLayer(standard))map.removeLayer(standard);
+     standardFallback.addTo(map);
+   }
+   if(standardErrorCount>=6)showMapError('Standard map tiles could not load. Check network access to the map provider.');
+ });
+ standardFallback.on('tileerror',()=>{if(active==='standard')showMapError('Street map tiles are unavailable from both map sources.');});
+ satellite.on('tileerror',()=>{
+   if(active!=='satellite')return;
+   satelliteErrorCount++;
+   if(satelliteErrorCount>=4)showMapError('Satellite imagery could not load. The street map remains available.');
+ });
  standard.addTo(map);
- const updateButtons=()=>{const s=$('#master-standard'),a=$('#master-satellite');if(!s||!a)return;s.classList.toggle('primary',active==='standard');s.classList.toggle('outline',active!=='standard');a.classList.toggle('primary',active==='satellite');a.classList.toggle('outline',active!=='satellite');};
- const setLayer=which=>{active=which;if(which==='satellite'){if(map.hasLayer(standard))map.removeLayer(standard);if(map.hasLayer(standardFallback))map.removeLayer(standardFallback);if(!map.hasLayer(satellite))satellite.addTo(map);}else{if(map.hasLayer(satellite))map.removeLayer(satellite);if(fallbackUsed)standardFallback.addTo(map);else standard.addTo(map);}updateButtons();setTimeout(()=>map.invalidateSize(true),80);};
- $('#master-standard').onclick=()=>setLayer('standard');$('#master-satellite').onclick=()=>setLayer('satellite');updateButtons();
+ const updateButtons=()=>{
+   const s=$('#master-standard'),a=$('#master-satellite');
+   if(!s||!a)return;
+   s.classList.toggle('primary',active==='standard');s.classList.toggle('outline',active!=='standard');
+   a.classList.toggle('primary',active==='satellite');a.classList.toggle('outline',active!=='satellite');
+ };
+ const setLayer=which=>{
+   active=which;
+   const note=el.querySelector('.map-provider-error');if(note)note.remove();
+   if(which==='satellite'){
+     if(map.hasLayer(standard))map.removeLayer(standard);
+     if(map.hasLayer(standardFallback))map.removeLayer(standardFallback);
+     satelliteErrorCount=0;
+     if(!map.hasLayer(satellite))satellite.addTo(map);
+   }else{
+     if(map.hasLayer(satellite))map.removeLayer(satellite);
+     if(fallbackUsed)standardFallback.addTo(map);else standard.addTo(map);
+   }
+   updateButtons();setTimeout(()=>map.invalidateSize(true),100);
+ };
+ const sb=$('#master-standard'),ab=$('#master-satellite');
+ if(sb)sb.onclick=()=>setLayer('standard');if(ab)ab.onclick=()=>setLayer('satellite');updateButtons();
  const valid=(companies||[]).filter(c=>c.latitude!=null&&c.longitude!=null&&Number.isFinite(Number(c.latitude))&&Number.isFinite(Number(c.longitude)));
  const markers=valid.map(c=>L.marker([Number(c.latitude),Number(c.longitude)]).addTo(map).bindPopup('<strong>'+esc(c.registered_name)+'</strong><br>'+esc(c.covering_areas||'')));
  if(markers.length)map.fitBounds(L.featureGroup(markers).getBounds().pad(.2));
