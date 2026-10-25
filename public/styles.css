@@ -24,3 +24,22 @@
 .panic-vehicle-picture{display:block;width:min(100%,210px);height:76px;flex:0 0 76px}
 .panic-button-label{display:block;line-height:1.2;text-align:center}
 @media(max-width:560px){.client-panic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.client-panic-button{min-height:128px;padding:9px 5px;font-size:13px}.panic-vehicle-picture{height:66px;flex-basis:66px;width:100%}}
+
+
+/* Client app: clean emergency-first home */
+.client-workspace .sidebar{display:none!important}
+.client-workspace .main{margin-left:0!important;min-height:100vh;padding-bottom:24px}
+.client-workspace .topbar{display:none!important}
+.client-workspace .page-content{max-width:900px;padding:78px 22px 20px}
+.client-hamburger{position:fixed;z-index:200;top:16px;left:16px}
+.client-hamburger .client-menu-toggle{width:46px;height:44px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#101a29;border:1px solid #35475b;border-radius:12px;box-shadow:0 6px 22px #0004}
+.client-hamburger .client-menu-toggle span{display:block;width:22px;height:2px;background:#eaf3fb;border-radius:2px}
+.client-hamburger .client-menu-items{position:absolute;top:52px;left:0;width:235px;margin:0;background:#101a29;border:1px solid #35475b;box-shadow:0 16px 38px #0008}
+.client-home{min-height:calc(100vh - 100px);display:flex;flex-direction:column;align-items:center;text-align:center}
+.client-welcome{margin:0 0 8px;color:var(--mint);font-weight:900;font-size:clamp(23px,4vw,34px);letter-spacing:.01em}
+.client-urgent{font-size:clamp(23px,4vw,32px);margin:0 0 26px;line-height:1.15}
+.client-panic-wrap{width:100%;max-width:680px;margin:0 auto}
+.client-panic-grid{gap:14px}
+.client-panic-button{min-height:170px}
+.client-app-footer{margin-top:auto;padding:38px 0 0;font-size:10px;color:#8494a7;letter-spacing:.03em}
+@media(max-width:560px){.client-workspace .page-content{padding:78px 14px 16px}.client-welcome{font-size:25px}.client-urgent{font-size:24px;margin-bottom:22px}.client-panic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.client-panic-button{min-height:145px}.client-app-footer{padding-top:30px}}
