@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=company-panic-siren15';
+    app.src='/app.js?v=client-signout-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
