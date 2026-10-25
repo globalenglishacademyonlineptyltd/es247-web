@@ -32,7 +32,7 @@
   }
   function loadMapLocationFix(){
     var fix=document.createElement('script');
-    fix.src='/map-location-fix.js?v=20261025-2';
+    fix.src='/map-location-fix.js?v=maps-fix-20261025-3';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -40,7 +40,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=master2-client-pages-fix6';
+    app.src='/app.js?v=maps-fix-20261025-3';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
