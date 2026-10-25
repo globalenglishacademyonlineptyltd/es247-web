@@ -16,7 +16,7 @@ app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: { directives: {
   defaultSrc:["'self'"], scriptSrc:["'self'","https://unpkg.com","https://cdnjs.cloudflare.com"],
   styleSrc:["'self'","'unsafe-inline'","https://unpkg.com"],
-  imgSrc:["'self'","data:","https://*.tile.openstreetmap.org","https://tile.openstreetmap.fr","https://*.basemaps.cartocdn.com","https://server.arcgisonline.com","https://gibs.earthdata.nasa.gov","https://unpkg.com"],
+  imgSrc:["'self'","data:","https://tile.openstreetmap.org","https://*.tile.openstreetmap.org","https://tile.openstreetmap.fr","https://*.basemaps.cartocdn.com","https://server.arcgisonline.com","https://*.arcgisonline.com","https://gibs.earthdata.nasa.gov","https://unpkg.com"],
   connectSrc:["'self'"], fontSrc:["'self'","https://unpkg.com"]
 }}}));
 app.use(express.json({limit:'1mb'}));
