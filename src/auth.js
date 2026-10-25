@@ -15,7 +15,7 @@ export function createAccessToken(user) {
 export function issueSession(res, user) {
   res.cookie(COOKIE, createAccessToken(user), {
     httpOnly: true, secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict', maxAge: 8 * 60 * 60 * 1000, path: '/'
+    sameSite: 'strict', maxAge: 30 * 24 * 60 * 60 * 1000, path: '/'
   });
 }
 export function clearSession(res) {
