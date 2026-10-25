@@ -137,7 +137,7 @@ function initMap(){
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const coords=state.incidents.filter(i=>i.latitude!=null&&i.longitude!=null&&Number.isFinite(Number(i.latitude))&&Number.isFinite(Number(i.longitude)));
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView(coords.length?[+coords[0].latitude,+coords[0].longitude]:[-29,24],coords.length?17:5);state.map=map;
- const standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'});
+ const standard=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'});
  const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri and its contributors'});
  let active='standard',standardErrors=0,satelliteErrors=0;const showError=msg=>mapNotice(el,msg);
  standard.on('tileerror',()=>{if(active==='standard'&&++standardErrors>=4)showError('The standard street map could not load. Please check your connection and try again.');});
