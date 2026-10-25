@@ -68,3 +68,6 @@ CREATE TABLE IF NOT EXISTS client_requests (
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS client_requests_company_idx ON client_requests(company_id,status,created_at DESC);
+
+-- Preserve the device-reported GPS accuracy with each emergency location.
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS location_accuracy_m DOUBLE PRECISION;
