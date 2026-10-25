@@ -211,6 +211,19 @@ app.post('/api/company/clients',requireCompanyAccess,async(req,res,next)=>{
   await db.query('COMMIT');res.status(201).json({client:cl.rows[0],message:'Client account created. The client must change the temporary password at first sign-in.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'That email is already in use.'});next(e);}finally{db.release();}
 });
+app.post('/api/company/clients/:id/family',requireCompanyAccess,async(req,res,next)=>{
+ const db=await pool.connect();try{
+  const p=z.object({full_name:z.string().trim().min(2).max(160),email,phone:z.string().trim().min(5).max(40),alternate_phone:z.string().trim().max(40).optional().nullable(),address:z.string().trim().min(3).max(500),vehicles:z.array(z.object({make:z.string().trim().max(100).optional().default(''),color:z.string().trim().max(80).optional().default(''),registration:z.string().trim().max(40).optional().default(''),vin:z.string().trim().max(100).optional().default('')})).max(10).optional().default([]),temporary_password:password}).safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Complete the family member fields. Password must be at least 12 characters.',details:p.error.issues.map(i=>({field:i.path.join('.'),message:i.message}))});
+  const d=p.data,co=companyScope(req);await db.query('BEGIN');
+  const parent=await db.query('SELECT id,family_group_id FROM clients WHERE id=$1 AND company_id=$2 AND archived_at IS NULL FOR UPDATE',[req.params.id,co]);
+  if(!parent.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Primary client not found.'});}
+  const root=parent.rows[0].family_group_id||parent.rows[0].id;
+  const u=await db.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'client',$3,$4,true) RETURNING id,email",[d.email,await hashPassword(d.temporary_password),co,d.full_name]);
+  const cl=await db.query("INSERT INTO clients(company_id,user_id,full_name,phone,alternate_phone,email,address,vehicles,family_group_id,is_family_primary) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,false) RETURNING id,full_name",[co,u.rows[0].id,d.full_name,d.phone,d.alternate_phone||null,d.email,d.address,JSON.stringify(d.vehicles),root]);
+  await db.query('COMMIT');res.status(201).json({client:cl.rows[0],message:'Family member account created and linked to the primary client.'});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'That email is already in use.'});next(e);}finally{db.release();}
+});
 app.put('/api/company/clients/:id',requireCompanyAccess,async(req,res,next)=>{
  const db=await pool.connect();try{
   const p=z.object({full_name:z.string().trim().min(2).max(160),email,phone:z.string().trim().min(5).max(40),alternate_phone:z.string().trim().max(40).optional().nullable(),address:z.string().trim().min(3).max(500),vehicles:z.array(z.object({make:z.string().trim().max(100).optional().default(''),color:z.string().trim().max(80).optional().default(''),registration:z.string().trim().max(40).optional().default(''),vin:z.string().trim().max(100).optional().default('')})).max(10).optional().default([])}).safeParse(req.body);
