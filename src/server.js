@@ -28,7 +28,7 @@ const password = z.string().min(12).max(128);
 const companyInput = z.object({
  registered_name:z.string().trim().min(2).max(180), cipc_number:z.string().trim().min(2).max(80),
  psira_number:z.string().trim().min(2).max(80), bbbee_level:z.string().trim().max(80).optional().nullable(),
- contact_number:z.string().trim().min(5).max(40), contact_email:email,
+ contact_number:z.string().trim().min(5).max(40), contact_email:email, temporary_password:password,
  covering_areas:z.string().trim().min(2).max(1000), tax_number:z.string().trim().min(2).max(80),
  vat_number:z.string().trim().max(80).optional().nullable()
 });
@@ -142,11 +142,16 @@ app.get('/api/dashboard',async(req,res,next)=>{
  }catch(e){next(e);}
 });
 app.post('/api/master/companies',requireRole('master_admin'),async(req,res,next)=>{
+ const db=await pool.connect();
  try{
-  const p=companyInput.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete all required company fields.',details:p.error.issues.map(i=>({field:i.path.join('.'),message:i.message}))});
-  const d=p.data;const r=await pool.query('INSERT INTO companies(registered_name,cipc_number,psira_number,bbbee_level,contact_number,contact_email,covering_areas,tax_number,vat_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,registered_name',[d.registered_name,d.cipc_number,d.psira_number,d.bbbee_level||null,d.contact_number,d.contact_email,d.covering_areas,d.tax_number,d.vat_number||null]);
-  res.status(201).json({company:r.rows[0]});
- }catch(e){if(e.code==='23505')return res.status(409).json({error:'CIPC number or PSIRA number already exists.'});next(e);}
+  const p=companyInput.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete all required company fields. The temporary password must contain at least 12 characters.',details:p.error.issues.map(i=>({field:i.path.join('.'),message:i.message}))});
+  const d=p.data;
+  await db.query('BEGIN');
+  const r=await db.query('INSERT INTO companies(registered_name,cipc_number,psira_number,bbbee_level,contact_number,contact_email,covering_areas,tax_number,vat_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,registered_name',[d.registered_name,d.cipc_number,d.psira_number,d.bbbee_level||null,d.contact_number,d.contact_email,d.covering_areas,d.tax_number,d.vat_number||null]);
+  const controller=await db.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'controller',$3,$4,true) RETURNING id,email,display_name,company_id",[d.contact_email,await hashPassword(d.temporary_password),r.rows[0].id,d.registered_name]);
+  await db.query('COMMIT');
+  res.status(201).json({company:r.rows[0],controller:controller.rows[0],message:'Company registered. The company login uses the contact email and must change the temporary password at first sign-in.'});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'CIPC number or PSIRA number already exists, or the contact email is already registered as a user.'});next(e);}finally{db.release();}
 });
 app.post('/api/master/companies/:id/controllers',requireRole('master_admin'),async(req,res,next)=>{
  try{
