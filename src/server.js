@@ -229,19 +229,21 @@ async function start(){
  await migrate();
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const existing=await pool.query('SELECT id,role,must_change_password FROM users WHERE email=$1',[e]);
-   if(!existing.rowCount){
-    const oneTimePassword=randomBytes(48).toString('base64url');
-    const initialHash=process.env.MASTER_ADMIN_2_PASSWORD ? await hashPassword(password.parse(process.env.MASTER_ADMIN_2_PASSWORD)) : await hashPassword(oneTimePassword);
-    await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',$3,true)",[e,initialHash,!process.env.MASTER_ADMIN_2_PASSWORD]);
-    console.log('Second master administrator provisioned.');
-   } else if(existing.rows[0].role==='master_admin_2') {
-    if(process.env.MASTER_ADMIN_2_PASSWORD && existing.rows[0].must_change_password){
-     await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(password.parse(process.env.MASTER_ADMIN_2_PASSWORD)),existing.rows[0].id]);
-     console.log('Second master administrator password was securely applied.');
-    } else console.log('Second master administrator account already exists.');
+   const target=await pool.query('SELECT id,role FROM users WHERE email=$1',[e]);
+   if(target.rowCount && target.rows[0].role!=='master_admin_2'){
+    console.error('MASTER_ADMIN_2_EMAIL is already used by a different role; no account changes were made.');
+   } else if(target.rowCount){
+    console.log('Second master administrator account already exists; password left unchanged.');
    } else {
-    console.error('MASTER_ADMIN_2_EMAIL matches an existing account with a different role; no account changes were made.');
+    const current=await pool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
+    if(current.rowCount){
+     await pool.query('UPDATE users SET email=$1 WHERE id=$2',[e,current.rows[0].id]);
+     console.log('Second master administrator email updated; existing password preserved.');
+    } else {
+     const oneTimePassword=randomBytes(48).toString('base64url');
+     await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
+     console.log('Second master administrator provisioned; password change required.');
+    }
    }
   }
   const count=await pool.query('SELECT COUNT(*)::int AS n FROM users');
