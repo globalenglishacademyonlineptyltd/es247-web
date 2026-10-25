@@ -18,3 +18,9 @@
 
 @media(max-width:900px){.client-workspace .sidebar{width:220px;padding:18px 12px}.client-workspace .sidebar .brand strong,.client-workspace .sidebar .brand small,.client-workspace .sidebar .side-label,.client-workspace .sidebar nav button span,.client-workspace .sidebar-bottom span:last-child{display:block}.client-workspace .sidebar .brand{justify-content:flex-start}.client-workspace .sidebar nav button{font-size:14px;text-align:left}.client-workspace .sidebar nav button:after{content:none}.client-workspace .main{margin-left:220px}.client-workspace .client-menu-items button{font-size:14px}}
 @media(max-width:560px){.client-workspace .sidebar{width:190px;padding:15px 9px}.client-workspace .main{margin-left:190px}.client-workspace .topbar{padding:14px 12px}.client-workspace .page-content{padding:12px}}
+
+/* Real vector vehicle pictures on all four client panic buttons */
+.client-panic-button{flex-direction:column;gap:8px;min-height:145px;padding:12px 10px}
+.panic-vehicle-picture{display:block;width:min(100%,210px);height:76px;flex:0 0 76px}
+.panic-button-label{display:block;line-height:1.2;text-align:center}
+@media(max-width:560px){.client-panic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.client-panic-button{min-height:128px;padding:9px 5px;font-size:13px}.panic-vehicle-picture{height:66px;flex-basis:66px;width:100%}}
