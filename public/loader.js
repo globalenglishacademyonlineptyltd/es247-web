@@ -12,7 +12,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=company-workspace7';
+    fix.src='/dashboard-fixes.js?v=company-client-profiles8';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=company-workspace7';
+    app.src='/app.js?v=company-client-profiles8';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
