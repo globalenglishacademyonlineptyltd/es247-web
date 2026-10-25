@@ -5,3 +5,5 @@
 .password-field{display:flex;align-items:stretch;gap:8px;margin-top:8px}.login-panel .password-field input{margin-top:0;min-width:0;flex:1}.password-toggle{border:1px solid var(--line);border-radius:10px;background:#19273a;color:var(--text);padding:0 13px;font-weight:700}.password-toggle:focus{outline:2px solid var(--mint);outline-offset:2px}
 
 .company-name-link{border:0;background:transparent;color:var(--mint);font:inherit;font-weight:750;text-align:left;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.company-name-link:hover{color:#fff}.company-name-link:focus{outline:2px solid var(--mint);outline-offset:4px;border-radius:3px}
+
+.panic-nav-dot{display:inline-block;width:11px;height:11px;flex:0 0 11px;margin-left:auto;border-radius:50%;background:#ff5967;box-shadow:0 0 0 2px #ff596733;animation:panicDotPulse .75s ease-in-out infinite alternate}.sidebar nav button{position:relative}.vehicle-row{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}.vehicle-row label{margin-top:0}@keyframes panicDotPulse{from{opacity:.38;box-shadow:0 0 0 1px #ff596722}to{opacity:1;box-shadow:0 0 0 7px #ff596733}}
