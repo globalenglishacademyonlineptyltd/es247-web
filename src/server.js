@@ -34,6 +34,10 @@ const companyInput = z.object({
 });
 const statuses = ['Acknowledged','Acknowledged - No Responder Available','Controller Responding','Response Dispatched','Response On Site','Incident Resolved'];
 const htmlEscape = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isMaster = req => ['master_admin','master_admin_2'].includes(req.user?.role);
+const companyScope = req => req.user?.role === 'master_admin_2' ? req.companyContextId : req.user?.company_id;
+const requireMaster = (req,res,next) => isMaster(req) ? next() : res.status(403).json({error:'You do not have permission to perform this action.'});
+const requireCompanyAccess = (req,res,next) => (req.user?.role === 'controller' || (req.user?.role === 'master_admin_2' && req.companyContextId)) ? next() : res.status(403).json({error:'Select a company workspace first.'});
 async function notifyCompanyOnPanic(companyId, incident, locationText) {
  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return;
  try {
@@ -122,26 +126,36 @@ app.post('/api/auth/reset-password',limiter,async(req,res,next)=>{
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 
-app.use('/api',authenticate,requirePasswordChanged);
+app.use('/api',authenticate,requirePasswordChanged,(req,res,next)=>{
+ const context=req.get('x-company-context');
+ if(!context)return next();
+ if(req.user.role!=='master_admin_2')return res.status(403).json({error:'Company workspace switching is restricted.'});
+ if(!/^\d+$/.test(context))return res.status(400).json({error:'Invalid company workspace.'});
+ pool.query('SELECT id FROM companies WHERE id=$1 AND archived_at IS NULL',[context]).then(r=>{
+  if(!r.rowCount)return res.status(404).json({error:'Active company not found.'});
+  req.companyContextId=Number(context);next();
+ }).catch(next);
+});
 app.get('/api/dashboard',async(req,res,next)=>{
  try{
-  if(req.user.role==='master_admin'){
+  if(req.user.role==='master_admin' || (req.user.role==='master_admin_2' && !req.companyContextId)){
    const companies=await pool.query(`SELECT c.id,c.registered_name,c.cipc_number,c.psira_number,c.bbbee_level,c.contact_number,c.contact_email,c.covering_areas,c.tax_number,c.vat_number,c.created_at,(SELECT COUNT(*)::int FROM clients cl WHERE cl.company_id=c.id) AS total_clients FROM companies c WHERE c.archived_at IS NULL ORDER BY c.registered_name`);
    const archived=await pool.query('SELECT id,registered_name,archived_at FROM companies WHERE archived_at IS NOT NULL ORDER BY archived_at DESC');
    const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM companies WHERE archived_at IS NULL) AS companies,(SELECT COUNT(*)::int FROM clients cl JOIN companies c ON c.id=cl.company_id WHERE c.archived_at IS NULL) AS clients");
    return res.json({role:req.user.role,companies:companies.rows,archived:archived.rows,counts:counts.rows[0]});
   }
-  if(req.user.role==='controller'){
-   const c=await pool.query('SELECT id,registered_name,covering_areas FROM companies WHERE id=$1 AND archived_at IS NULL',[req.user.company_id]);
+  if(req.user.role==='controller' || (req.user.role==='master_admin_2' && req.companyContextId)){
+   const scope=companyScope(req);
+   const c=await pool.query('SELECT id,registered_name,covering_areas FROM companies WHERE id=$1 AND archived_at IS NULL',[scope]);
    if(!c.rowCount)return res.status(403).json({error:'Your company is unavailable. Contact the platform administrator.'});
-   const counts=await pool.query('SELECT (SELECT COUNT(*)::int FROM clients WHERE company_id=$1) AS clients,(SELECT COUNT(*)::int FROM incidents WHERE company_id=$1 AND status<>\'Incident Resolved\') AS open_incidents',[req.user.company_id]);
-   return res.json({role:req.user.role,company:c.rows[0],counts:counts.rows[0]});
+   const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM clients WHERE company_id=$1) AS clients,(SELECT COUNT(*)::int FROM incidents WHERE company_id=$1 AND status<>'Incident Resolved') AS open_incidents",[scope]);
+   return res.json({role:'controller',company:c.rows[0],counts:counts.rows[0],workspace_admin:req.user.role==='master_admin_2'});
   }
   const r=await pool.query('SELECT id,incident_type,status,location_text,panic_at,updated_at FROM incidents WHERE client_id=(SELECT id FROM clients WHERE user_id=$1) ORDER BY panic_at DESC LIMIT 100',[req.user.id]);
   res.json({role:req.user.role,incidents:r.rows});
  }catch(e){next(e);}
 });
-app.post('/api/master/companies',requireRole('master_admin'),async(req,res,next)=>{
+app.post('/api/master/companies',requireMaster,async(req,res,next)=>{
  const db=await pool.connect();
  try{
   const p=companyInput.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete all required company fields. The temporary password must contain at least 12 characters.',details:p.error.issues.map(i=>({field:i.path.join('.'),message:i.message}))});
@@ -153,7 +167,7 @@ app.post('/api/master/companies',requireRole('master_admin'),async(req,res,next)
   res.status(201).json({company:r.rows[0],controller:controller.rows[0],message:'Company registered. The company login uses the contact email and must change the temporary password at first sign-in.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'CIPC number or PSIRA number already exists, or the contact email is already registered as a user.'});next(e);}finally{db.release();}
 });
-app.post('/api/master/companies/:id/controllers',requireRole('master_admin'),async(req,res,next)=>{
+app.post('/api/master/companies/:id/controllers',requireMaster,async(req,res,next)=>{
  try{
   const p=z.object({display_name:z.string().trim().min(2).max(160),email,password}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a name, valid email and temporary password of at least 12 characters.'});
@@ -162,7 +176,7 @@ app.post('/api/master/companies/:id/controllers',requireRole('master_admin'),asy
   res.status(201).json({controller:r.rows[0]});
  }catch(e){if(e.code==='23505')return res.status(409).json({error:'That email is already in use.'});next(e);}
 });
-app.post('/api/master/clients',requireRole('master_admin'),async(req,res,next)=>{
+app.post('/api/master/clients',requireMaster,async(req,res,next)=>{
  const db=await pool.connect();
  try{
   const p=z.object({company_id:z.coerce.number().int().positive(),full_name:z.string().trim().min(2).max(160),email,phone:z.string().trim().min(5).max(40).optional().nullable(),address:z.string().trim().max(500).optional().nullable(),latitude:z.coerce.number().min(-90).max(90).optional().nullable(),longitude:z.coerce.number().min(-180).max(180).optional().nullable(),app_download_url:z.string().url().max(1000).optional().nullable(),temporary_password:password}).safeParse(req.body);
@@ -173,23 +187,23 @@ app.post('/api/master/clients',requireRole('master_admin'),async(req,res,next)=>
   await db.query('COMMIT');res.status(201).json({client:c.rows[0],message:'Client created. Share the temporary password securely; it must be changed at first sign-in.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'That email is already in use.'});next(e);}finally{db.release();}
 });
-app.get('/api/master/active-companies',requireRole('master_admin'),async(_req,res,next)=>{try{const r=await pool.query('SELECT id,registered_name FROM companies WHERE archived_at IS NULL ORDER BY registered_name');res.json({companies:r.rows});}catch(e){next(e);}});
-app.post('/api/master/companies/:id/archive',requireRole('master_admin'),async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Active company not found.'});res.json({ok:true});}catch(e){next(e);}});
-app.post('/api/master/companies/:id/restore',requireRole('master_admin'),async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
-app.delete('/api/master/companies/:id',requireRole('master_admin'),async(req,res,next)=>{try{
+app.get('/api/master/active-companies',requireMaster,async(_req,res,next)=>{try{const r=await pool.query('SELECT id,registered_name FROM companies WHERE archived_at IS NULL ORDER BY registered_name');res.json({companies:r.rows});}catch(e){next(e);}});
+app.post('/api/master/companies/:id/archive',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Active company not found.'});res.json({ok:true});}catch(e){next(e);}});
+app.post('/api/master/companies/:id/restore',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
+app.delete('/api/master/companies/:id',requireMaster,async(req,res,next)=>{try{
  const co=await pool.query('SELECT id FROM companies WHERE id=$1 AND archived_at IS NOT NULL',[req.params.id]);if(!co.rowCount)return res.status(404).json({error:'Archive the company before permanent deletion.'});
  const counts=await pool.query('SELECT (SELECT COUNT(*)::int FROM users WHERE company_id=$1) AS users,(SELECT COUNT(*)::int FROM clients WHERE company_id=$1) AS clients,(SELECT COUNT(*)::int FROM incidents WHERE company_id=$1) AS incidents',[req.params.id]);
  const c=counts.rows[0];if(c.users||c.clients||c.incidents)return res.status(409).json({error:'This company has linked users, clients or incidents. Its history must be retained; keep it archived instead.'});
  await pool.query('DELETE FROM companies WHERE id=$1',[req.params.id]);res.json({ok:true});
  }catch(e){next(e);}});
-app.get('/api/company/clients',requireRole('controller'),async(req,res,next)=>{try{const r=await pool.query('SELECT id,full_name,phone,email,address,latitude,longitude,app_download_url,created_at FROM clients WHERE company_id=$1 ORDER BY full_name',[req.user.company_id]);res.json({clients:r.rows});}catch(e){next(e);}});
-app.post('/api/company/clients',requireRole('controller'),(_req,res)=>res.status(403).json({error:'Only the master administrator can create clients.'}));
-app.get('/api/incidents',requireRole('controller'),async(req,res,next)=>{try{const r=await pool.query(`SELECT i.id,i.incident_type,i.status,i.ob_number,i.latitude,i.longitude,i.location_text,i.panic_at,i.updated_at,i.resolved_at,c.full_name AS client_name,c.phone AS client_phone FROM incidents i LEFT JOIN clients c ON c.id=i.client_id WHERE i.company_id=$1 ORDER BY i.panic_at DESC LIMIT 250`,[req.user.company_id]);res.json({incidents:r.rows});}catch(e){next(e);}});
-app.get('/api/incidents/:id/events',requireRole('controller'),async(req,res,next)=>{try{const own=await pool.query('SELECT id FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});const r=await pool.query('SELECT e.id,e.event_type,e.note,e.created_at,u.display_name AS actor_name FROM incident_events e LEFT JOIN users u ON u.id=e.actor_user_id WHERE e.incident_id=$1 ORDER BY e.created_at',[req.params.id]);res.json({events:r.rows});}catch(e){next(e);}});
-app.post('/api/incidents/:id/status',requireRole('controller'),async(req,res,next)=>{
+app.get('/api/company/clients',requireCompanyAccess,async(req,res,next)=>{try{const r=await pool.query('SELECT id,full_name,phone,email,address,latitude,longitude,app_download_url,created_at FROM clients WHERE company_id=$1 ORDER BY full_name',[companyScope(req)]);res.json({clients:r.rows});}catch(e){next(e);}});
+app.post('/api/company/clients',requireCompanyAccess,(_req,res)=>res.status(403).json({error:'Only the master administrator can create clients.'}));
+app.get('/api/incidents',requireCompanyAccess,async(req,res,next)=>{try{const r=await pool.query(`SELECT i.id,i.incident_type,i.status,i.ob_number,i.latitude,i.longitude,i.location_text,i.panic_at,i.updated_at,i.resolved_at,c.full_name AS client_name,c.phone AS client_phone FROM incidents i LEFT JOIN clients c ON c.id=i.client_id WHERE i.company_id=$1 ORDER BY i.panic_at DESC LIMIT 250`,[companyScope(req)]);res.json({incidents:r.rows});}catch(e){next(e);}});
+app.get('/api/incidents/:id/events',requireCompanyAccess,async(req,res,next)=>{try{const own=await pool.query('SELECT id FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,companyScope(req)]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});const r=await pool.query('SELECT e.id,e.event_type,e.note,e.created_at,u.display_name AS actor_name FROM incident_events e LEFT JOIN users u ON u.id=e.actor_user_id WHERE e.incident_id=$1 ORDER BY e.created_at',[req.params.id]);res.json({events:r.rows});}catch(e){next(e);}});
+app.post('/api/incidents/:id/status',requireCompanyAccess,async(req,res,next)=>{
  const db=await pool.connect();try{
   const p=z.object({status:z.enum(statuses),ob_number:z.string().trim().max(100).optional(),note:z.string().trim().max(3000).optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Choose a valid status.'});
-  await db.query('BEGIN');const cur=await db.query('SELECT id,status,ob_number FROM incidents WHERE id=$1 AND company_id=$2 FOR UPDATE',[req.params.id,req.user.company_id]);
+  await db.query('BEGIN');const cur=await db.query('SELECT id,status,ob_number FROM incidents WHERE id=$1 AND company_id=$2 FOR UPDATE',[req.params.id,companyScope(req)]);
   if(!cur.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Incident not found.'});}
   const ob=p.data.ob_number?.trim()||cur.rows[0].ob_number;if(!ob){await db.query('ROLLBACK');return res.status(400).json({error:'An OB number is required before controller actions.'});}
   if(cur.rows[0].status==='Incident Resolved'){await db.query('ROLLBACK');return res.status(409).json({error:'Resolved incidents cannot be changed.'});}
@@ -197,14 +211,14 @@ app.post('/api/incidents/:id/status',requireRole('controller'),async(req,res,nex
   await db.query('INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,$3,$4)',[req.params.id,req.user.id,p.data.status,p.data.note||null]);await db.query('COMMIT');res.json({ok:true,status:p.data.status,ob_number:ob});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
-app.post('/api/incidents/:id/notes',requireRole('controller'),async(req,res,next)=>{try{const p=z.object({note:z.string().trim().min(1).max(3000)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Enter a note.'});const own=await pool.query('SELECT id FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});await pool.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Controller Note',$3)",[req.params.id,req.user.id,p.data.note]);await pool.query('UPDATE incidents SET updated_at=NOW() WHERE id=$1',[req.params.id]);res.status(201).json({ok:true});}catch(e){next(e);}});
+app.post('/api/incidents/:id/notes',requireCompanyAccess,async(req,res,next)=>{try{const p=z.object({note:z.string().trim().min(1).max(3000)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Enter a note.'});const own=await pool.query('SELECT id FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,companyScope(req)]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});await pool.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Controller Note',$3)",[req.params.id,req.user.id,p.data.note]);await pool.query('UPDATE incidents SET updated_at=NOW() WHERE id=$1',[req.params.id]);res.status(201).json({ok:true});}catch(e){next(e);}});
 app.post('/api/client/panic',requireRole('client'),async(req,res,next)=>{
  const db=await pool.connect();try{
   const p=z.object({incident_type:z.enum(['Emergency Service','Accident','Fire Panic','Other']),latitude:z.coerce.number().min(-90).max(90).optional().nullable(),longitude:z.coerce.number().min(-180).max(180).optional().nullable(),location_text:z.string().trim().max(500).optional().nullable()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Choose a valid panic type.'});
-  const c=await db.query('SELECT id,company_id FROM clients WHERE user_id=$1',[req.user.id]);if(!c.rowCount||Number(c.rows[0].company_id)!==Number(req.user.company_id))return res.status(403).json({error:'No company is assigned to this client.'});
-  await db.query('BEGIN');const d=p.data;const i=await db.query("INSERT INTO incidents(company_id,client_id,incident_type,status,latitude,longitude,location_text) VALUES($1,$2,$3,'Panic Received',$4,$5,$6) RETURNING id,incident_type,status,panic_at",[req.user.company_id,c.rows[0].id,d.incident_type,d.latitude??null,d.longitude??null,d.location_text||null]);
-  await db.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Panic Received','Panic alert submitted by client.')",[i.rows[0].id,req.user.id]);await db.query('COMMIT');void notifyCompanyOnPanic(req.user.company_id,i.rows[0],d.location_text||null);res.status(201).json({incident:i.rows[0],message:'Panic alert received.'});
+  const c=await db.query('SELECT id,company_id FROM clients WHERE user_id=$1',[req.user.id]);if(!c.rowCount||Number(c.rows[0].company_id)!==Number(companyScope(req)))return res.status(403).json({error:'No company is assigned to this client.'});
+  await db.query('BEGIN');const d=p.data;const i=await db.query("INSERT INTO incidents(company_id,client_id,incident_type,status,latitude,longitude,location_text) VALUES($1,$2,$3,'Panic Received',$4,$5,$6) RETURNING id,incident_type,status,panic_at",[companyScope(req),c.rows[0].id,d.incident_type,d.latitude??null,d.longitude??null,d.location_text||null]);
+  await db.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Panic Received','Panic alert submitted by client.')",[i.rows[0].id,req.user.id]);await db.query('COMMIT');void notifyCompanyOnPanic(companyScope(req),i.rows[0],d.location_text||null);res.status(201).json({incident:i.rows[0],message:'Panic alert received.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 app.get('/api/client/incidents',requireRole('client'),async(req,res,next)=>{try{const r=await pool.query('SELECT i.id,i.incident_type,i.status,i.location_text,i.panic_at,i.updated_at FROM incidents i JOIN clients c ON c.id=i.client_id WHERE c.user_id=$1 ORDER BY i.panic_at DESC LIMIT 100',[req.user.id]);res.json({incidents:r.rows});}catch(e){next(e);}});
@@ -213,7 +227,20 @@ app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')))
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
  await migrate();
- const count=await pool.query('SELECT COUNT(*)::int AS n FROM users');
+ if(process.env.MASTER_ADMIN_2_EMAIL){
+   const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
+   const existing=await pool.query('SELECT id,role FROM users WHERE email=$1',[e]);
+   if(!existing.rowCount){
+    const oneTimePassword=randomBytes(48).toString('base64url');
+    await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
+    console.log('Second master administrator provisioned; use Forgot Password to set a password.');
+   } else if(existing.rows[0].role==='master_admin_2') {
+    console.log('Second master administrator account already exists.');
+   } else {
+    console.error('MASTER_ADMIN_2_EMAIL matches an existing account with a different role; no account changes were made.');
+   }
+  }
+  const count=await pool.query('SELECT COUNT(*)::int AS n FROM users');
  if(count.rows[0].n===0&&process.env.INITIAL_ADMIN_EMAIL&&process.env.INITIAL_ADMIN_PASSWORD){
   const e=email.parse(process.env.INITIAL_ADMIN_EMAIL),p=password.parse(process.env.INITIAL_ADMIN_PASSWORD);
   await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'master_admin',NULL,'Master Administrator',false)",[e,await hashPassword(p)]);
