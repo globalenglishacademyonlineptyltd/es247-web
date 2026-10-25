@@ -124,7 +124,7 @@ function initMap(){
  const updateButtons=()=>{const s=$('#incident-standard'),a=$('#incident-satellite');if(!s||!a)return;s.classList.toggle('primary',active==='standard');s.classList.toggle('outline',active!=='standard');a.classList.toggle('primary',active==='satellite');a.classList.toggle('outline',active!=='satellite');};
  const setLayer=which=>{active=which;const n=el.querySelector('.map-provider-error');if(n)n.remove();if(which==='satellite'){if(map.hasLayer(standard))map.removeLayer(standard);satelliteErrors=0;satellite.addTo(map);}else{if(map.hasLayer(satellite))map.removeLayer(satellite);standardErrors=0;standard.addTo(map);}updateButtons();setTimeout(()=>map.invalidateSize(true),100);};
  $('#incident-standard')?.addEventListener('click',()=>setLayer('standard'));$('#incident-satellite')?.addEventListener('click',()=>setLayer('satellite'));updateButtons();
- const points=coords.map(i=>{const ll=[+i.latitude,+i.longitude];const m=L.marker(ll).addTo(map);m.bindPopup('<strong>'+esc(i.incident_type)+' #'+esc(i.id)+'</strong><br>'+esc(i.client_name||'Client')+'<br>'+esc(i.status));m.on('click',()=>openIncident(i.id));return ll;});
+ const points=coords.map(i=>{const ll=[+i.latitude,+i.longitude];const pending=i.status!=='Incident Resolved';const m=L.circleMarker(ll,{radius:pending?10:7,color:pending?'#ff2438':'#2583ff',weight:3,fillColor:pending?'#ff2438':'#2583ff',fillOpacity:.85}).addTo(map);m.bindPopup('<strong>'+esc(i.incident_type)+' #'+esc(i.id)+'</strong><br>'+esc(i.client_name||'Client')+'<br>'+esc(i.status));m.on('click',()=>openIncident(i.id));return ll;});
  addCoverageAreas(map,state.data?.company?[state.data.company]:[],points,1);
  setTimeout(()=>map.invalidateSize(true),120);setTimeout(()=>map.invalidateSize(true),450);
 }
