@@ -139,7 +139,7 @@ app.use('/api',authenticate,requirePasswordChanged,(req,res,next)=>{
 app.get('/api/dashboard',async(req,res,next)=>{
  try{
   if(req.user.role==='master_admin' || (req.user.role==='master_admin_2' && !req.companyContextId)){
-   const companies=await pool.query(`SELECT c.id,c.registered_name,c.cipc_number,c.psira_number,c.bbbee_level,c.contact_number,c.contact_email,c.covering_areas,c.tax_number,c.vat_number,c.created_at,(SELECT COUNT(*)::int FROM clients cl WHERE cl.company_id=c.id AND cl.archived_at IS NULL) AS total_clients FROM companies c WHERE c.archived_at IS NULL ORDER BY c.registered_name`);
+   const companies=await pool.query(`SELECT c.id,c.registered_name,c.cipc_number,c.psira_number,c.bbbee_level,c.contact_number,c.contact_email,c.covering_areas,c.tax_number,c.vat_number,c.created_at,(SELECT COUNT(*)::int FROM clients cl WHERE cl.company_id=c.id AND cl.archived_at IS NULL) AS total_clients,(SELECT COUNT(*)::int FROM clients cl JOIN users u ON u.id=cl.user_id WHERE cl.company_id=c.id AND cl.archived_at IS NULL AND u.active=false) AS paused_clients FROM companies c WHERE c.archived_at IS NULL ORDER BY c.registered_name`);
    const archived=await pool.query('SELECT id,registered_name,archived_at FROM companies WHERE archived_at IS NOT NULL ORDER BY archived_at DESC');
    const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM companies WHERE archived_at IS NULL) AS companies,(SELECT COUNT(*)::int FROM clients cl JOIN companies c ON c.id=cl.company_id WHERE c.archived_at IS NULL AND cl.archived_at IS NULL) AS clients");
    return res.json({role:req.user.role,companies:companies.rows,archived:archived.rows,counts:counts.rows[0]});
