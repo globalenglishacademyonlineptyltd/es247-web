@@ -41,7 +41,7 @@ async function geocodeCoverageArea(area){
   return point;
  }catch{return null;}
 }
-async function addCoverageAreas(map,companies=[],existingPoints=[]){
+async function addCoverageAreas(map,companies=[],existingPoints=[],zoomOutSteps=0){
  const areas=[];for(const company of companies||[]){
   const raw=String(company.covering_areas||'').trim();if(!raw)continue;
   const names=raw.split(/[;|\n]+|,(?![^()]*\))/).map(s=>s.trim()).filter(Boolean);
@@ -59,6 +59,7 @@ async function addCoverageAreas(map,companies=[],existingPoints=[]){
   if(i<areas.length-1&&!coverageGeocodeCache.has(areas[i+1]?.name))await new Promise(resolve=>setTimeout(resolve,1100));
  }
  if(boundsPoints.length){if(boundsPoints.length===1)map.setView(boundsPoints[0],10);else map.fitBounds(boundsPoints,{padding:[28,28],maxZoom:11});}
+ if(zoomOutSteps>0)map.zoomOut(zoomOutSteps);
  if(areas.length&&!drawn)mapNotice(map.getContainer(),'Coverage areas could not be located automatically. Check the area names and refresh to retry.');
 }
 function initMasterMap(companies=[]){
@@ -76,7 +77,7 @@ function initMasterMap(companies=[]){
   $('#master-standard')?.addEventListener('click',()=>set('standard'));$('#master-satellite')?.addEventListener('click',()=>set('satellite'));update();
   const valid=(companies||[]).filter(c=>c.latitude!=null&&c.longitude!=null&&Number.isFinite(Number(c.latitude))&&Number.isFinite(Number(c.longitude)));
   const points=valid.map(c=>{const ll=[Number(c.latitude),Number(c.longitude)];L.marker(ll).addTo(map).bindPopup('<strong>'+esc(c.registered_name)+'</strong><br>'+esc(c.covering_areas||''));return ll;});
-  addCoverageAreas(map,companies,points);
+  addCoverageAreas(map,companies,points,2);
   setTimeout(()=>map.invalidateSize(true),100);setTimeout(()=>map.invalidateSize(true),450);
 }
 function adminDashboard(d){return '<div class="stats"><div class="stat"><small>ACTIVE COMPANIES</small><strong>'+d.counts.companies+'</strong></div><div class="stat"><small>REGISTERED CLIENTS</small><strong>'+d.counts.clients+'</strong></div><div class="stat"><small>ACCESS ROLE</small><strong style="font-size:20px">Master Admin</strong></div></div><div class="section-head"><h2>Company Directory</h2><button class="btn primary" data-goto="add-company">+ Add Company</button></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>CIPC / PSIRA</th><th>Contact</th><th>Clients</th><th>Actions</th></tr></thead><tbody>'+ (d.companies.length?d.companies.map(c=>'<tr><td><strong>'+esc(c.registered_name)+'</strong><br><small class="muted">'+esc(c.covering_areas)+'</small></td><td>'+esc(c.cipc_number)+'<br><small class="muted">'+esc(c.psira_number)+'</small></td><td>'+esc(c.contact_number)+'<br>'+esc(c.contact_email)+'</td><td><strong>'+c.total_clients+'</strong></td><td><button class="btn outline small" data-controller="'+c.id+'">Add controller</button> <button class="btn danger small" data-archive="'+c.id+'">Archive</button></td></tr>').join(''):'<tr><td colspan="5" class="empty">No companies yet. Add the first company to begin.</td></tr>')+'</tbody></table></div><p class="tiny">The master administrator sees company records and total client counts only, not live panic details or private incident feeds.</p>';}
@@ -103,7 +104,7 @@ function initMap(){
  const setLayer=which=>{active=which;const n=el.querySelector('.map-provider-error');if(n)n.remove();if(which==='satellite'){if(map.hasLayer(standard))map.removeLayer(standard);satelliteErrors=0;satellite.addTo(map);}else{if(map.hasLayer(satellite))map.removeLayer(satellite);standardErrors=0;standard.addTo(map);}updateButtons();setTimeout(()=>map.invalidateSize(true),100);};
  $('#incident-standard')?.addEventListener('click',()=>setLayer('standard'));$('#incident-satellite')?.addEventListener('click',()=>setLayer('satellite'));updateButtons();
  const points=coords.map(i=>{const ll=[+i.latitude,+i.longitude];const m=L.marker(ll).addTo(map);m.bindPopup('<strong>'+esc(i.incident_type)+' #'+esc(i.id)+'</strong><br>'+esc(i.client_name||'Client')+'<br>'+esc(i.status));m.on('click',()=>openIncident(i.id));return ll;});
- addCoverageAreas(map,state.data?.company?[state.data.company]:[],points);
+ addCoverageAreas(map,state.data?.company?[state.data.company]:[],points,1);
  setTimeout(()=>map.invalidateSize(true),120);setTimeout(()=>map.invalidateSize(true),450);
 }
 function bindDynamic(){ $$('[data-goto]').forEach(b=>b.onclick=()=>navigate(b.dataset.goto));$$('[data-archive]').forEach(b=>b.onclick=async()=>{if(!confirm('Archive this company? It will leave active totals; its history will be retained.'))return;try{await api('/api/master/companies/'+b.dataset.archive+'/archive',{method:'POST'});toast('Company archived.');navigate('dashboard');}catch(e){toast(e.message,true);}});$$('[data-restore]').forEach(b=>b.onclick=async()=>{try{await api('/api/master/companies/'+b.dataset.restore+'/restore',{method:'POST'});toast('Company restored.');navigate('archive');}catch(e){toast(e.message,true);}});$$('[data-delete-company]').forEach(b=>b.onclick=async()=>{if(!confirm('Permanently delete this archived company only if it has no linked users, clients or incidents? Historical records are retained.'))return;try{await api('/api/master/companies/'+b.dataset.deleteCompany,{method:'DELETE'});toast('Empty archived company deleted.');navigate('archive');}catch(e){toast(e.message,true);}});$$('[data-controller]').forEach(b=>b.onclick=()=>controllerForm(b.dataset.controller));$$('[data-incident]').forEach(b=>b.onclick=()=>openIncident(b.dataset.incident));const search=$('#incident-search');if(search)search.oninput=()=>{const q=search.value.toLowerCase();const filtered=state.incidents.filter(i=>[i.id,i.incident_type,i.status,i.client_name,i.location_text,i.ob_number].some(v=>String(v||'').toLowerCase().includes(q)));const tmp=document.createElement('div');tmp.innerHTML=incidentTable(filtered);$('#incident-table').replaceWith(tmp.querySelector('#incident-table'));$$('[data-incident]').forEach(b=>b.onclick=()=>openIncident(b.dataset.incident));};}
