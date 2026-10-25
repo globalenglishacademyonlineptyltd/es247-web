@@ -1,0 +1,6 @@
+/* ES 24/7 incident alert: red flashing Incidents Map button. */
+nav button.incident-nav-alert{color:#fff!important;background:#7a1722!important;animation:incidentButtonFlash .75s ease-in-out infinite;box-shadow:0 0 0 2px #ff596733,0 0 18px #ff596755}
+nav button.incident-nav-alert:hover,nav button.incident-nav-alert.active{color:#fff!important;background:#9b1f2b!important}
+@keyframes incidentButtonFlash{0%,100%{background:#7a1722!important;box-shadow:0 0 0 2px #ff596733,0 0 10px #ff596733}50%{background:#ff263d!important;box-shadow:0 0 0 4px #ff596766,0 0 26px #ff5967aa}}
+.panic-nav-dot{animation:panicDotPulse .45s ease-in-out infinite alternate!important}
+@keyframes panicDotPulse{from{opacity:.35;transform:scale(.8);box-shadow:0 0 0 1px #ff596722}to{opacity:1;transform:scale(1.25);box-shadow:0 0 0 7px #ff596733}}
