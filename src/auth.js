@@ -10,7 +10,7 @@ export const hashPassword = password => bcrypt.hash(password, 12);
 export const verifyPassword = (password, hash) => bcrypt.compare(password, hash);
 export function createAccessToken(user) {
   return jwt.sign({ sub: String(user.id), role: user.role, companyId: user.company_id ?? null },
-    secret(), { expiresIn: '8h', issuer: 'es247', audience: 'es247-web' });
+    secret(), { expiresIn: '30d', issuer: 'es247', audience: 'es247-web' });
 }
 export function issueSession(res, user) {
   res.cookie(COOKIE, createAccessToken(user), {
