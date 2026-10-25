@@ -79,64 +79,6 @@ function initMasterMap(companies=[]){
   addCoverageAreas(map,companies,points);
   setTimeout(()=>map.invalidateSize(true),100);setTimeout(()=>map.invalidateSize(true),450);
 }
- const el=$('#master-map');if(!el)return;
- if(!window.L){el.innerHTML='<div style="padding:24px;color:#d9e5f2">Interactive map library did not load. Please refresh the dashboard.</div>';return;}
- if(state.map){state.map.remove();state.map=null;}
- el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
- const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
- // Use Esri's hosted street-map tiles rather than OpenStreetMap's volunteer tile server.
- // This avoids OSM 403 policy blocks while preserving the existing satellite layer.
- const standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{
-   maxZoom:19,attribution:'Tiles © Esri — Sources: Esri, HERE, Garmin, Intermap, increment P Corp., GEBCO, USGS, FAO, NPS, NRCAN, GeoBase, IGN, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), (c) OpenStreetMap contributors, and the GIS User Community'
- });
- const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
-   maxZoom:19,attribution:'Imagery © Esri and its contributors'
- });
- let active='standard',standardErrorCount=0,satelliteErrorCount=0;
- const showMapError=message=>{
-   let note=el.querySelector('.map-provider-error');
-   if(!note){note=document.createElement('div');note.className='map-provider-error';note.style.cssText='position:absolute;z-index:1000;left:12px;right:12px;bottom:12px;background:#111827ee;color:#fff;padding:10px 12px;border-radius:8px;font-size:13px';el.appendChild(note);}
-   note.textContent=message;
- };
- standard.on('tileerror',()=>{
-   if(active!=='standard')return;
-   standardErrorCount++;
-   if(standardErrorCount>=4)showMapError('The standard street map could not load. Please check your connection and try again.');
- });
- satellite.on('tileerror',()=>{
-   if(active!=='satellite')return;
-   satelliteErrorCount++;
-   if(satelliteErrorCount>=4)showMapError('Satellite imagery could not load. The standard street map remains available.');
- });
- standard.addTo(map);
- const updateButtons=()=>{
-   const s=$('#master-standard'),a=$('#master-satellite');
-   if(!s||!a)return;
-   s.classList.toggle('primary',active==='standard');s.classList.toggle('outline',active!=='standard');
-   a.classList.toggle('primary',active==='satellite');a.classList.toggle('outline',active!=='satellite');
- };
- const setLayer=which=>{
-   active=which;
-   const note=el.querySelector('.map-provider-error');if(note)note.remove();
-   if(which==='satellite'){
-     if(map.hasLayer(standard))map.removeLayer(standard);
-     satelliteErrorCount=0;
-     if(!map.hasLayer(satellite))satellite.addTo(map);
-   }else{
-     if(map.hasLayer(satellite))map.removeLayer(satellite);
-     standardErrorCount=0;
-     if(!map.hasLayer(standard))standard.addTo(map);
-   }
-   updateButtons();setTimeout(()=>map.invalidateSize(true),100);
- };
- const sb=$('#master-standard'),ab=$('#master-satellite');
- if(sb)sb.onclick=()=>setLayer('standard');if(ab)ab.onclick=()=>setLayer('satellite');updateButtons();
- const valid=(companies||[]).filter(c=>c.latitude!=null&&c.longitude!=null&&Number.isFinite(Number(c.latitude))&&Number.isFinite(Number(c.longitude)));
- const markers=valid.map(c=>L.marker([Number(c.latitude),Number(c.longitude)]).addTo(map).bindPopup('<strong>'+esc(c.registered_name)+'</strong><br>'+esc(c.covering_areas||'')));
- if(markers.length)map.fitBounds(L.featureGroup(markers).getBounds().pad(.2));
- setTimeout(()=>map.invalidateSize(true),100);setTimeout(()=>map.invalidateSize(true),450);
- if(window.ResizeObserver){const observer=new ResizeObserver(()=>map.invalidateSize());observer.observe(el);}
-}
 function adminDashboard(d){return '<div class="stats"><div class="stat"><small>ACTIVE COMPANIES</small><strong>'+d.counts.companies+'</strong></div><div class="stat"><small>REGISTERED CLIENTS</small><strong>'+d.counts.clients+'</strong></div><div class="stat"><small>ACCESS ROLE</small><strong style="font-size:20px">Master Admin</strong></div></div><div class="section-head"><h2>Company Directory</h2><button class="btn primary" data-goto="add-company">+ Add Company</button></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>CIPC / PSIRA</th><th>Contact</th><th>Clients</th><th>Actions</th></tr></thead><tbody>'+ (d.companies.length?d.companies.map(c=>'<tr><td><strong>'+esc(c.registered_name)+'</strong><br><small class="muted">'+esc(c.covering_areas)+'</small></td><td>'+esc(c.cipc_number)+'<br><small class="muted">'+esc(c.psira_number)+'</small></td><td>'+esc(c.contact_number)+'<br>'+esc(c.contact_email)+'</td><td><strong>'+c.total_clients+'</strong></td><td><button class="btn outline small" data-controller="'+c.id+'">Add controller</button> <button class="btn danger small" data-archive="'+c.id+'">Archive</button></td></tr>').join(''):'<tr><td colspan="5" class="empty">No companies yet. Add the first company to begin.</td></tr>')+'</tbody></table></div><p class="tiny">The master administrator sees company records and total client counts only, not live panic details or private incident feeds.</p>';}
 function clientDashboard(d){return '<div class="stats"><div class="stat"><small>MY INCIDENTS</small><strong>'+d.incidents.length+'</strong></div><div class="stat"><small>ACCOUNT</small><strong style="font-size:20px">Client Portal</strong></div><div class="stat"><small>EMERGENCY ACCESS</small><strong style="font-size:20px;color:var(--mint)">Ready</strong></div></div><div class="card"><p class="eyebrow">EMERGENCY ACCESS</p><h2>Need urgent assistance?</h2><p class="muted">Send a panic alert to the emergency service company assigned to your account. Share your location when prompted by your device.</p><button class="btn primary" data-goto="panic">Send Panic Alert</button></div><div class="card" style="margin-top:18px"><h2>My Incident History</h2>'+(d.incidents.length?d.incidents.map(i=>'<p>'+pill(i.status)+' <strong>'+esc(i.incident_type)+'</strong><br><small class="muted">'+date(i.panic_at)+' · '+esc(i.location_text||'Location unavailable')+'</small></p>').join(''):'<p class="empty">No incidents yet.</p>')+'</div>';}
 function controllerDashboard(d,inc){return '<div class="stats"><div class="stat"><small>COMPANY</small><strong style="font-size:20px">'+esc(d.company.registered_name)+'</strong></div><div class="stat"><small>REGISTERED CLIENTS</small><strong>'+d.counts.clients+'</strong></div><div class="stat"><small>OPEN INCIDENTS</small><strong>'+d.counts.open_incidents+'</strong></div></div><div class="card" style="margin-bottom:18px"><div class="section-head"><div><h2>Live Incident Map</h2><p class="muted">Choose standard street map or satellite imagery.</p></div><div><button id="incident-standard" class="btn primary small">Standard</button> <button id="incident-satellite" class="btn outline small">Satellite</button> <button class="btn outline small" data-goto="incidents">View incidents</button></div></div><div id="incident-map" class="map"></div><p class="tiny">Map pins are based on GPS coordinates supplied by the client device. An incident without coordinates remains available in the incident list.</p><p><strong>Company coverage areas:</strong> '+esc(d.company.covering_areas||'Not specified')+'</p></div>'+incidentTable(inc);}
