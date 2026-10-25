@@ -12,7 +12,14 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=master-client-pages-fix1';
+    fix.src='/dashboard-fixes.js?v=master-client-pages-fix2';
+    fix.onload=function(){installSafeBindings();loadClientPagesFix();};
+    fix.onerror=function(){loadClientPagesFix();};
+    document.body.appendChild(fix);
+  }
+  function loadClientPagesFix(){
+    var fix=document.createElement('script');
+    fix.src='/client-pages-fix.js?v=master2-client-pages-fix1';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -20,7 +27,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=master2-forEach-fix3';
+    app.src='/app.js?v=master2-client-pages-fix4';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
