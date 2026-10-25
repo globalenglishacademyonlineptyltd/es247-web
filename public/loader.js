@@ -10,12 +10,20 @@
       }
     }catch(err){console.error('Dashboard binding guard failed:',err)}
   }
+  function loadDashboardFixes(){
+    var fix=document.createElement('script');
+    fix.src='/dashboard-fixes.js?v=navfix1';
+    fix.onload=installSafeBindings;
+    document.body.appendChild(fix);
+  }
   function loadApp(){
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=session-restore3';
+    app.src='/app.js?v=session-restore4';
     app.onload=function(){
+      installSafeBindings();
+      loadDashboardFixes();
       var tries=0;
       var guard=setInterval(function(){
         installSafeBindings();
