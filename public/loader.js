@@ -12,7 +12,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=company-client-menu14';
+    fix.src='/dashboard-fixes.js?v=company-panic-siren15';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=company-client-menu14';
+    app.src='/app.js?v=company-panic-siren15';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
