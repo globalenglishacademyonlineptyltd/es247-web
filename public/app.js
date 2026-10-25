@@ -29,18 +29,15 @@ function initMasterMap(companies=[]){
  if(state.map){state.map.remove();state.map=null;}
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
- // Use direct, documented tile endpoints instead of the previous CARTO/NASA layers
- // that were displaying provider error tiles in production.
- const standard=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-   maxZoom:19,attribution:'© OpenStreetMap contributors'
- });
- const standardFallback=L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{
-   maxZoom:19,attribution:'© OpenStreetMap contributors, HOT'
+ // Use Esri's hosted street-map tiles rather than OpenStreetMap's volunteer tile server.
+ // This avoids OSM 403 policy blocks while preserving the existing satellite layer.
+ const standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{
+   maxZoom:19,attribution:'Tiles © Esri — Sources: Esri, HERE, Garmin, Intermap, increment P Corp., GEBCO, USGS, FAO, NPS, NRCAN, GeoBase, IGN, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), (c) OpenStreetMap contributors, and the GIS User Community'
  });
  const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
    maxZoom:19,attribution:'Imagery © Esri and its contributors'
  });
- let active='standard',fallbackUsed=false,standardErrorCount=0,satelliteErrorCount=0;
+ let active='standard',standardErrorCount=0,satelliteErrorCount=0;
  const showMapError=message=>{
    let note=el.querySelector('.map-provider-error');
    if(!note){note=document.createElement('div');note.className='map-provider-error';note.style.cssText='position:absolute;z-index:1000;left:12px;right:12px;bottom:12px;background:#111827ee;color:#fff;padding:10px 12px;border-radius:8px;font-size:13px';el.appendChild(note);}
@@ -49,18 +46,12 @@ function initMasterMap(companies=[]){
  standard.on('tileerror',()=>{
    if(active!=='standard')return;
    standardErrorCount++;
-   if(!fallbackUsed&&standardErrorCount>=2){
-     fallbackUsed=true;
-     if(map.hasLayer(standard))map.removeLayer(standard);
-     standardFallback.addTo(map);
-   }
-   if(standardErrorCount>=6)showMapError('Standard map tiles could not load. Check network access to the map provider.');
+   if(standardErrorCount>=4)showMapError('The standard street map could not load. Please check your connection and try again.');
  });
- standardFallback.on('tileerror',()=>{if(active==='standard')showMapError('Street map tiles are unavailable from both map sources.');});
  satellite.on('tileerror',()=>{
    if(active!=='satellite')return;
    satelliteErrorCount++;
-   if(satelliteErrorCount>=4)showMapError('Satellite imagery could not load. The street map remains available.');
+   if(satelliteErrorCount>=4)showMapError('Satellite imagery could not load. The standard street map remains available.');
  });
  standard.addTo(map);
  const updateButtons=()=>{
@@ -74,12 +65,12 @@ function initMasterMap(companies=[]){
    const note=el.querySelector('.map-provider-error');if(note)note.remove();
    if(which==='satellite'){
      if(map.hasLayer(standard))map.removeLayer(standard);
-     if(map.hasLayer(standardFallback))map.removeLayer(standardFallback);
      satelliteErrorCount=0;
      if(!map.hasLayer(satellite))satellite.addTo(map);
    }else{
      if(map.hasLayer(satellite))map.removeLayer(satellite);
-     if(fallbackUsed)standardFallback.addTo(map);else standard.addTo(map);
+     standardErrorCount=0;
+     if(!map.hasLayer(standard))standard.addTo(map);
    }
    updateButtons();setTimeout(()=>map.invalidateSize(true),100);
  };
