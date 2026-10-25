@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS incidents (
  client_id BIGINT REFERENCES clients(id) ON DELETE SET NULL,
  incident_type TEXT NOT NULL CHECK(incident_type IN ('Emergency Service','Accident','Fire Panic','Other')),
  status TEXT NOT NULL DEFAULT 'Panic Received' CHECK(status IN ('Panic Received','Acknowledged','Acknowledged - No Responder Available','Controller Responding','Response Dispatched','Response On Site','Incident Resolved')),
- ob_number TEXT, latitude DOUBLE PRECISION, longitude DOUBLE PRECISION, location_text TEXT, device_ip INET,
+ ob_number TEXT, latitude DOUBLE PRECISION, longitude DOUBLE PRECISION, location_text TEXT,
  panic_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), resolved_at TIMESTAMPTZ
 );
 CREATE TABLE IF NOT EXISTS incident_events (
@@ -50,6 +50,6 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS alternate_phone TEXT;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS vehicles JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS family_group_id BIGINT;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_family_primary BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE incidents ADD COLUMN IF NOT EXISTS device_ip INET;
+ALTER TABLE incidents DROP COLUMN IF EXISTS device_ip;
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS client_activated_at TIMESTAMPTZ;
