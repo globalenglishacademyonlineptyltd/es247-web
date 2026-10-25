@@ -41,3 +41,6 @@ CREATE INDEX IF NOT EXISTS incidents_company_panic_idx ON incidents(company_id,p
 CREATE INDEX IF NOT EXISTS incident_events_incident_idx ON incident_events(incident_id,created_at);
 CREATE INDEX IF NOT EXISTS clients_company_idx ON clients(company_id);
 CREATE INDEX IF NOT EXISTS password_reset_user_idx ON password_reset_tokens(user_id,created_at DESC);
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS clients_company_archive_idx ON clients(company_id,archived_at,full_name);
