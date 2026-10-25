@@ -294,7 +294,7 @@ app.post('/api/incidents/:id/status',requireCompanyAccess,async(req,res,next)=>{
 app.post('/api/incidents/:id/notes',requireCompanyAccess,async(req,res,next)=>{try{const p=z.object({note:z.string().trim().min(1).max(3000)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Enter a note.'});const own=await pool.query('SELECT id FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,companyScope(req)]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});await pool.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Controller Note',$3)",[req.params.id,req.user.id,p.data.note]);await pool.query('UPDATE incidents SET updated_at=NOW() WHERE id=$1',[req.params.id]);res.status(201).json({ok:true});}catch(e){next(e);}});
 app.post('/api/client/panic',requireRole('client'),async(req,res,next)=>{
  const db=await pool.connect();try{
-  const p=z.object({incident_type:z.enum(['Emergency Service','Accident','Fire Panic','Other']),latitude:z.coerce.number().min(-90).max(90).optional().nullable(),longitude:z.coerce.number().min(-180).max(180).optional().nullable(),location_text:z.string().trim().max(500).optional().nullable(),activated_at:z.string().datetime().optional()}).safeParse(req.body);
+  const p=z.object({incident_type:z.enum(['Emergency Service','Accident','Fire Panic','Other','Panic: Ambulance Assistance Needed','Panic: Police Assistance Needed','Panic: Fire Fighter Assistance Needed','Panic: Tow Truck Assistance Needed']),latitude:z.coerce.number().min(-90).max(90).optional().nullable(),longitude:z.coerce.number().min(-180).max(180).optional().nullable(),location_text:z.string().trim().max(500).optional().nullable(),activated_at:z.string().datetime().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Choose a valid panic type.'});
   const c=await db.query('SELECT id,company_id FROM clients WHERE user_id=$1',[req.user.id]);if(!c.rowCount||Number(c.rows[0].company_id)!==Number(companyScope(req)))return res.status(403).json({error:'No company is assigned to this client.'});
   await db.query('BEGIN');const d=p.data;const i=await db.query("INSERT INTO incidents(company_id,client_id,incident_type,status,latitude,longitude,location_text,client_activated_at) VALUES($1,$2,$3,'Panic Received',$4,$5,$6,COALESCE($7::timestamptz,NOW())) RETURNING id,incident_type,status,panic_at,client_activated_at",[companyScope(req),c.rows[0].id,d.incident_type,d.latitude??null,d.longitude??null,d.location_text||null,d.activated_at||null]);
@@ -302,6 +302,29 @@ app.post('/api/client/panic',requireRole('client'),async(req,res,next)=>{
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 app.get('/api/client/incidents',requireRole('client'),async(req,res,next)=>{try{const r=await pool.query('SELECT i.id,i.incident_type,i.status,i.location_text,i.panic_at,i.updated_at FROM incidents i JOIN clients c ON c.id=i.client_id WHERE c.user_id=$1 ORDER BY i.panic_at DESC LIMIT 100',[req.user.id]);res.json({incidents:r.rows});}catch(e){next(e);}});
+
+app.get('/api/client/profile',requireRole('client'),async(req,res,next)=>{try{
+ const r=await pool.query(`SELECT cl.id,cl.full_name,cl.phone,cl.alternate_phone,cl.email,cl.address,cl.latitude,cl.longitude,cl.vehicles,co.registered_name AS company_name,co.psira_number,co.contact_number AS company_contact_number,co.contact_email AS company_contact_email FROM clients cl JOIN companies co ON co.id=cl.company_id WHERE cl.user_id=$1 AND cl.archived_at IS NULL`,[req.user.id]);
+ if(!r.rowCount)return res.status(404).json({error:'Client profile not found.'});res.json({profile:r.rows[0]});
+ }catch(e){next(e);}});
+app.post('/api/client/requests/family-members',requireRole('client'),async(req,res,next)=>{try{
+ const p=z.object({family_member_count:z.coerce.number().int().min(1).max(20),request_message:z.string().trim().max(1000).optional().default('Please phone me to discuss adding family members and send me a quotation.')}).safeParse(req.body);
+ if(!p.success)return res.status(400).json({error:'Choose between 1 and 20 family members.'});
+ const c=await pool.query('SELECT id,company_id FROM clients WHERE user_id=$1 AND archived_at IS NULL',[req.user.id]);
+ if(!c.rowCount)return res.status(404).json({error:'Client profile not found.'});
+ const r=await pool.query("INSERT INTO client_requests(company_id,client_id,request_type,family_member_count,request_message) VALUES($1,$2,'Add Family members Request',$3,$4) RETURNING id,created_at",[c.rows[0].company_id,c.rows[0].id,p.data.family_member_count,p.data.request_message]);
+ res.status(201).json({ok:true,request:r.rows[0],message:'Your request has been sent to your security company.'});
+ }catch(e){next(e);}});
+app.get('/api/company/requests',requireCompanyAccess,async(req,res,next)=>{try{
+ const r=await pool.query(`SELECT cr.id,cr.request_type,cr.family_member_count,cr.request_message,cr.status,cr.created_at,cl.full_name AS client_name,cl.id AS client_id,cl.phone,cl.email,cl.address FROM client_requests cr JOIN clients cl ON cl.id=cr.client_id WHERE cr.company_id=$1 ORDER BY CASE WHEN cr.status='New' THEN 0 ELSE 1 END,cr.created_at DESC`,[companyScope(req)]);
+ res.json({requests:r.rows});
+ }catch(e){next(e);}});
+app.post('/api/company/requests/:id/status',requireCompanyAccess,async(req,res,next)=>{try{
+ const p=z.object({status:z.enum(['New','Contacted','Completed'])}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Choose a valid request status.'});
+ const r=await pool.query('UPDATE client_requests SET status=$1 WHERE id=$2 AND company_id=$3 RETURNING id',[p.data.status,req.params.id,companyScope(req)]);
+ if(!r.rowCount)return res.status(404).json({error:'Client request not found.'});res.json({ok:true});
+ }catch(e){next(e);}});
+
 app.use('/api',(_req,res)=>res.status(404).json({error:'API route not found.'}));
 app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')));
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
