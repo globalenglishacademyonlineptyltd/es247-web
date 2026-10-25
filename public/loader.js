@@ -10,6 +10,12 @@
       }
     }catch(err){console.error('Dashboard binding guard failed:',err)}
   }
+  function loadCompanyAccessFix(){
+    var fix=document.createElement('script');
+    fix.src='/company-access-fix.js?v=company-client-permissions-fix1';
+    fix.onload=installSafeBindings;
+    document.body.appendChild(fix);
+  }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
     fix.src='/dashboard-fixes.js?v=master-client-pages-fix3';
@@ -20,7 +26,8 @@
   function loadClientPagesFix(){
     var fix=document.createElement('script');
     fix.src='/client-pages-fix.js?v=master2-client-pages-fix2';
-    fix.onload=installSafeBindings;
+    fix.onload=function(){installSafeBindings();loadCompanyAccessFix();};
+    fix.onerror=function(){loadCompanyAccessFix();};
     document.body.appendChild(fix);
   }
   function loadApp(){
