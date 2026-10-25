@@ -25,7 +25,7 @@
       if(!coverageMap||!window.L)return;
       if(window.__es247CoverageMap){try{window.__es247CoverageMap.remove()}catch(e){}}
       var map=L.map(coverageMap,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);window.__es247CoverageMap=map;
-      var standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'}).addTo(map);
+      var standard=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'}).addTo(map);
       var satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri and its contributors'});
       var active='standard';
       var host=coverageMap.parentElement;host.querySelectorAll('#company-coverage-standard,#company-coverage-satellite').forEach(function(x){x.remove()});
