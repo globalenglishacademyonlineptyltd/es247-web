@@ -53,3 +53,18 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_family_primary BOOLEAN NOT NULL 
 ALTER TABLE incidents DROP COLUMN IF EXISTS device_ip;
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS client_activated_at TIMESTAMPTZ;
+
+
+ALTER TABLE incidents DROP CONSTRAINT IF EXISTS incidents_incident_type_check;
+ALTER TABLE incidents ADD CONSTRAINT incidents_incident_type_check CHECK(incident_type IN ('Emergency Service','Accident','Fire Panic','Other','Panic: Ambulance Assistance Needed','Panic: Police Assistance Needed','Panic: Fire Fighter Assistance Needed','Panic: Tow Truck Assistance Needed'));
+CREATE TABLE IF NOT EXISTS client_requests (
+ id BIGSERIAL PRIMARY KEY,
+ company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
+ client_id BIGINT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+ request_type TEXT NOT NULL,
+ family_member_count INTEGER NOT NULL CHECK(family_member_count BETWEEN 1 AND 20),
+ request_message TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'New',
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS client_requests_company_idx ON client_requests(company_id,status,created_at DESC);
