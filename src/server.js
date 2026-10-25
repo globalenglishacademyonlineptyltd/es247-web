@@ -249,10 +249,30 @@ app.post('/api/incidents/:id/resolve',requireCompanyAccess,async(req,res,next)=>
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 app.post('/api/incidents/:id/acknowledge',requireCompanyAccess,async(req,res,next)=>{
- try{const own=await pool.query('SELECT status FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,companyScope(req)]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});if(own.rows[0].status==='Incident Resolved')return res.status(409).json({error:'This panic is already resolved.'});if(own.rows[0].status==='Panic Received'){await pool.query("UPDATE incidents SET status='Acknowledged',updated_at=NOW() WHERE id=$1",[req.params.id]);await pool.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Acknowledged','Company acknowledged the panic.')",[req.params.id,req.user.id]);}res.json({ok:true});}catch(e){next(e);}
+ const db=await pool.connect();try{
+  const p=z.object({controller_name:z.string().trim().min(2).max(160),ob_number:z.string().trim().min(1).max(100),responder_name:z.string().trim().min(2).max(160),vehicle_registration:z.string().trim().min(2).max(40)}).safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Controller name, OB number, responder name and responder vehicle registration are all compulsory.'});
+  await db.query('BEGIN');const own=await db.query('SELECT status FROM incidents WHERE id=$1 AND company_id=$2 FOR UPDATE',[req.params.id,companyScope(req)]);
+  if(!own.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Incident not found.'});}
+  if(own.rows[0].status==='Incident Resolved'){await db.query('ROLLBACK');return res.status(409).json({error:'This panic is already resolved.'});}
+  const note='Controller / control room member: '+p.data.controller_name+' | OB number: '+p.data.ob_number+' | Responder: '+p.data.responder_name+' | Responder vehicle registration: '+p.data.vehicle_registration;
+  await db.query("UPDATE incidents SET status='Acknowledged',ob_number=$1,updated_at=NOW() WHERE id=$2",[p.data.ob_number,req.params.id]);
+  await db.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Acknowledged',$3)",[req.params.id,req.user.id,note]);
+  await db.query('COMMIT');res.json({ok:true});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 app.post('/api/incidents/:id/reject',requireCompanyAccess,async(req,res,next)=>{
- try{const p=z.object({reason:z.string().trim().min(3).max(1000)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Enter a reason for rejecting the panic.'});const own=await pool.query('SELECT status FROM incidents WHERE id=$1 AND company_id=$2',[req.params.id,companyScope(req)]);if(!own.rowCount)return res.status(404).json({error:'Incident not found.'});if(own.rows[0].status==='Incident Resolved')return res.status(409).json({error:'This panic is already resolved.'});await pool.query("UPDATE incidents SET status='Acknowledged - No Responder Available',updated_at=NOW() WHERE id=$1",[req.params.id]);await pool.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Panic Rejected',$3)",[req.params.id,req.user.id,p.data.reason]);res.json({ok:true});}catch(e){next(e);}
+ const db=await pool.connect();try{
+  const p=z.object({controller_name:z.string().trim().min(2).max(160),ob_number:z.string().trim().min(1).max(100),reason:z.string().trim().min(3).max(1000)}).safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Controller name, OB number and the exact reason for rejection are all compulsory.'});
+  await db.query('BEGIN');const own=await db.query('SELECT status FROM incidents WHERE id=$1 AND company_id=$2 FOR UPDATE',[req.params.id,companyScope(req)]);
+  if(!own.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Incident not found.'});}
+  if(own.rows[0].status==='Incident Resolved'){await db.query('ROLLBACK');return res.status(409).json({error:'This panic is already resolved.'});}
+  await db.query("UPDATE incidents SET status='Acknowledged - No Responder Available',ob_number=$1,updated_at=NOW() WHERE id=$2",[p.data.ob_number,req.params.id]);
+  const note='Controller / control room member: '+p.data.controller_name+' | OB number: '+p.data.ob_number+' | Exact rejection reason: '+p.data.reason;
+  await db.query("INSERT INTO incident_events(incident_id,actor_user_id,event_type,note) VALUES($1,$2,'Panic Rejected',$3)",[req.params.id,req.user.id,note]);
+  await db.query('COMMIT');res.json({ok:true});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
 });
 
 app.get('/api/incidents',requireCompanyAccess,async(req,res,next)=>{try{const r=await pool.query(`SELECT i.id,i.incident_type,i.status,i.ob_number,i.latitude,i.longitude,i.location_text,i.client_activated_at,i.panic_at,i.updated_at,i.resolved_at,c.full_name AS client_name,c.phone AS client_phone,c.alternate_phone AS client_alternate_phone,c.email AS client_email,c.address AS client_address,c.vehicles,c.id AS client_id FROM incidents i LEFT JOIN clients c ON c.id=i.client_id WHERE i.company_id=$1 ORDER BY i.panic_at DESC LIMIT 250`,[companyScope(req)]);res.json({incidents:r.rows});}catch(e){next(e);}});
