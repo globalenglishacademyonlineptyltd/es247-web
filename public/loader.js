@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=incident-alert-behavior2';
+    app.src='/app.js?v=gps-accuracy-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
