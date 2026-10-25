@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=panic-gps-diagnostic4';
+    app.src='/app.js?v=client-pages-array-guard1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
