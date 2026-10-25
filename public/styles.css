@@ -48,3 +48,10 @@
 .sidebar nav button.incident-nav-alert{background:#b91c1c!important;color:#fff!important;border-color:#ff4545!important;animation:incidentNavFlash .8s steps(2,start) infinite;box-shadow:0 0 0 2px #ef444455,0 0 18px #ef444477}
 .sidebar nav button.incident-nav-alert .panic-nav-dot{background:#fff;box-shadow:0 0 0 3px #ffffff55}
 @keyframes incidentNavFlash{0%,49%{background:#b91c1c;color:#fff}50%,100%{background:#fff0f0;color:#991b1b}}
+
+/* Keep the Incidents Map alert unmistakable and place its unresolved dot at the far right. */
+.sidebar nav button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px}
+.sidebar nav button span{flex:1;min-width:0}
+.sidebar nav button .panic-nav-dot{margin-left:auto;order:2;flex:0 0 12px;width:12px;height:12px;background:#ff172d;box-shadow:0 0 0 2px #ff172d55,0 0 12px #ff172d}
+.sidebar nav button.incident-nav-alert{display:flex!important;background:#ff152d!important;color:#fff!important;border:2px solid #ff6575!important;animation:incidentNavFlash .65s steps(2,start) infinite!important;box-shadow:0 0 0 3px #ef444455,0 0 22px #ef4444aa!important}
+@keyframes incidentNavFlash{0%,49%{background:#c6001b;color:#fff}50%,100%{background:#fff;color:#b00018}}
