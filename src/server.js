@@ -229,13 +229,17 @@ async function start(){
  await migrate();
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const existing=await pool.query('SELECT id,role FROM users WHERE email=$1',[e]);
+   const existing=await pool.query('SELECT id,role,must_change_password FROM users WHERE email=$1',[e]);
    if(!existing.rowCount){
     const oneTimePassword=randomBytes(48).toString('base64url');
-    await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
-    console.log('Second master administrator provisioned; use Forgot Password to set a password.');
+    const initialHash=process.env.MASTER_ADMIN_2_PASSWORD ? await hashPassword(password.parse(process.env.MASTER_ADMIN_2_PASSWORD)) : await hashPassword(oneTimePassword);
+    await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',$3,true)",[e,initialHash,!process.env.MASTER_ADMIN_2_PASSWORD]);
+    console.log('Second master administrator provisioned.');
    } else if(existing.rows[0].role==='master_admin_2') {
-    console.log('Second master administrator account already exists.');
+    if(process.env.MASTER_ADMIN_2_PASSWORD && existing.rows[0].must_change_password){
+     await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(password.parse(process.env.MASTER_ADMIN_2_PASSWORD)),existing.rows[0].id]);
+     console.log('Second master administrator password was securely applied.');
+    } else console.log('Second master administrator account already exists.');
    } else {
     console.error('MASTER_ADMIN_2_EMAIL matches an existing account with a different role; no account changes were made.');
    }
