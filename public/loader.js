@@ -4,7 +4,7 @@
     if (appStarted) return;
     appStarted = true;
     var app = document.createElement('script');
-    app.src = '/app.js?v=company-temp-password1';
+    app.src = '/app.js?v=company-map-esri2';
     app.onerror = function () {
       var e = document.getElementById('login-error');
       if (e) e.textContent = 'The sign-in application could not load. Please refresh the page.';
