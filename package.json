@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },
-  "scripts": { "start": "node src/server.js", "check": "node --check src/server.js && node --check src/auth.js && node --check src/db.js && node --check public/app.js" },
+  "scripts": { "start": "node src/start.js", "check": "node --check src/server.js && node --check src/start.js && node --check src/auth.js && node --check src/db.js && node --check public/app.js" },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
