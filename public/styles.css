@@ -43,3 +43,8 @@
 .client-panic-button{min-height:170px}
 .client-app-footer{margin-top:auto;padding:38px 0 0;font-size:10px;color:#8494a7;letter-spacing:.03em}
 @media(max-width:560px){.client-workspace .page-content{padding:78px 14px 16px}.client-welcome{font-size:25px}.client-urgent{font-size:24px;margin-bottom:22px}.client-panic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.client-panic-button{min-height:145px}.client-app-footer{padding-top:30px}}
+
+/* Flash the Incidents Map navigation item until an incoming panic is opened. */
+.sidebar nav button.incident-nav-alert{background:#b91c1c!important;color:#fff!important;border-color:#ff4545!important;animation:incidentNavFlash .8s steps(2,start) infinite;box-shadow:0 0 0 2px #ef444455,0 0 18px #ef444477}
+.sidebar nav button.incident-nav-alert .panic-nav-dot{background:#fff;box-shadow:0 0 0 3px #ffffff55}
+@keyframes incidentNavFlash{0%,49%{background:#b91c1c;color:#fff}50%,100%{background:#fff0f0;color:#991b1b}}
