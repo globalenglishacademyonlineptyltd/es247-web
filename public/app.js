@@ -136,7 +136,7 @@ function initMap(){
  const el=$('#incident-map');if(!el||!window.L)return;if(state.map){state.map.remove();state.map=null;}
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const coords=state.incidents.filter(i=>i.latitude!=null&&i.longitude!=null&&Number.isFinite(Number(i.latitude))&&Number.isFinite(Number(i.longitude)));
- const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView(coords.length?[+coords[0].latitude,+coords[0].longitude]:[-29,24],coords.length?10:5);state.map=map;
+ const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView(coords.length?[+coords[0].latitude,+coords[0].longitude]:[-29,24],coords.length?17:5);state.map=map;
  const standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'});
  const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri and its contributors'});
  let active='standard',standardErrors=0,satelliteErrors=0;const showError=msg=>mapNotice(el,msg);
@@ -146,7 +146,8 @@ function initMap(){
  const setLayer=which=>{active=which;const n=el.querySelector('.map-provider-error');if(n)n.remove();if(which==='satellite'){if(map.hasLayer(standard))map.removeLayer(standard);satelliteErrors=0;satellite.addTo(map);}else{if(map.hasLayer(satellite))map.removeLayer(satellite);standardErrors=0;standard.addTo(map);}updateButtons();setTimeout(()=>map.invalidateSize(true),100);};
  $('#incident-standard')?.addEventListener('click',()=>setLayer('standard'));$('#incident-satellite')?.addEventListener('click',()=>setLayer('satellite'));updateButtons();
  const points=coords.map(i=>{const ll=[+i.latitude,+i.longitude];const pending=i.status!=='Incident Resolved';const m=L.circleMarker(ll,{radius:pending?10:7,color:pending?'#ff2438':'#2583ff',weight:3,fillColor:pending?'#ff2438':'#2583ff',fillOpacity:.85}).addTo(map);m.bindPopup('<strong>'+esc(i.incident_type)+' #'+esc(i.id)+'</strong><br>'+esc(i.client_name||'Client')+'<br>'+esc(i.status));m.on('click',()=>openIncident(i.id));return ll;});
- addCoverageAreas(map,state.data?.company?[state.data.company]:[],points,1);
+ // Keep the incident map anchored to the actual panic GPS coordinates. Coverage-area geocoding/bounds must not move the map away from the client's live location.
+ if(points.length>1){map.fitBounds(points,{padding:[28,28],maxZoom:17});}else if(points.length===1){map.setView(points[0],17);}
  setTimeout(()=>map.invalidateSize(true),120);setTimeout(()=>map.invalidateSize(true),450);
 }
 function bindTableSearches(){ $$('[data-table-search]').forEach(input=>{if(input.dataset.bound)return;input.dataset.bound='1';input.addEventListener('input',()=>{const table=document.getElementById(input.dataset.tableSearch);if(!table)return;const q=input.value.trim().toLocaleLowerCase();table.querySelectorAll('tbody tr').forEach(row=>{row.hidden=!!q&&!row.textContent.toLocaleLowerCase().includes(q);});});});}
