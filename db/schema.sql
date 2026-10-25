@@ -54,7 +54,6 @@ ALTER TABLE incidents DROP COLUMN IF EXISTS device_ip;
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS client_activated_at TIMESTAMPTZ;
 
-
 ALTER TABLE incidents DROP CONSTRAINT IF EXISTS incidents_incident_type_check;
 ALTER TABLE incidents ADD CONSTRAINT incidents_incident_type_check CHECK(incident_type IN ('Emergency Service','Accident','Fire Panic','Other','Panic: Ambulance Assistance Needed','Panic: Police Assistance Needed','Panic: Fire Fighter Assistance Needed','Panic: Tow Truck Assistance Needed'));
 CREATE TABLE IF NOT EXISTS client_requests (
@@ -71,3 +70,30 @@ CREATE INDEX IF NOT EXISTS client_requests_company_idx ON client_requests(compan
 
 -- Preserve the device-reported GPS accuracy with each emergency location.
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS location_accuracy_m DOUBLE PRECISION;
+
+-- A permanently deleted client must never leave an orphaned client login behind.
+-- Clean up any orphaned client accounts from earlier deletions, then enforce the rule at database level.
+DELETE FROM users u
+WHERE u.role='client'
+  AND NOT EXISTS (SELECT 1 FROM clients c WHERE c.user_id=u.id);
+
+CREATE OR REPLACE FUNCTION delete_client_login_after_client_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.user_id IS NOT NULL THEN
+    DELETE FROM users
+    WHERE id=OLD.user_id
+      AND role='client'
+      AND NOT EXISTS (SELECT 1 FROM clients c WHERE c.user_id=OLD.user_id);
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS clients_delete_login_cleanup ON clients;
+CREATE TRIGGER clients_delete_login_cleanup
+AFTER DELETE ON clients
+FOR EACH ROW
+EXECUTE FUNCTION delete_client_login_after_client_delete();
