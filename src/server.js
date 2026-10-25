@@ -229,16 +229,17 @@ async function start(){
  await migrate();
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const target=await pool.query('SELECT id,role FROM users WHERE email=$1',[e]);
-   if(target.rowCount && target.rows[0].role!=='master_admin_2'){
-    console.error('MASTER_ADMIN_2_EMAIL is already used by a different role; no account changes were made.');
-   } else if(target.rowCount){
-    console.log('Second master administrator account already exists; password left unchanged.');
+   const target=await pool.query('SELECT id,role FROM users WHERE LOWER(email)=LOWER($1)',[e]);
+   if(target.rowCount){
+    // The configured address is explicitly designated Master Admin 2.
+    // Promote only this exact target account; preserve its password hash.
+    await pool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true WHERE id=$2",[e,target.rows[0].id]);
+    console.log('Second master administrator account role verified and enforced; existing password preserved.');
    } else {
     const current=await pool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
     if(current.rowCount){
-     await pool.query('UPDATE users SET email=$1 WHERE id=$2',[e,current.rows[0].id]);
-     console.log('Second master administrator email updated; existing password preserved.');
+     await pool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true WHERE id=$2',[e,current.rows[0].id]);
+     console.log('Second master administrator email updated and role enforced; existing password preserved.');
     } else {
      const oneTimePassword=randomBytes(48).toString('base64url');
      await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
