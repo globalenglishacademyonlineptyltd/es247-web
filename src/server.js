@@ -139,16 +139,16 @@ app.use('/api',authenticate,requirePasswordChanged,(req,res,next)=>{
 app.get('/api/dashboard',async(req,res,next)=>{
  try{
   if(req.user.role==='master_admin' || (req.user.role==='master_admin_2' && !req.companyContextId)){
-   const companies=await pool.query(`SELECT c.id,c.registered_name,c.cipc_number,c.psira_number,c.bbbee_level,c.contact_number,c.contact_email,c.covering_areas,c.tax_number,c.vat_number,c.created_at,(SELECT COUNT(*)::int FROM clients cl WHERE cl.company_id=c.id) AS total_clients FROM companies c WHERE c.archived_at IS NULL ORDER BY c.registered_name`);
+   const companies=await pool.query(`SELECT c.id,c.registered_name,c.cipc_number,c.psira_number,c.bbbee_level,c.contact_number,c.contact_email,c.covering_areas,c.tax_number,c.vat_number,c.created_at,(SELECT COUNT(*)::int FROM clients cl WHERE cl.company_id=c.id AND cl.archived_at IS NULL) AS total_clients FROM companies c WHERE c.archived_at IS NULL ORDER BY c.registered_name`);
    const archived=await pool.query('SELECT id,registered_name,archived_at FROM companies WHERE archived_at IS NOT NULL ORDER BY archived_at DESC');
-   const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM companies WHERE archived_at IS NULL) AS companies,(SELECT COUNT(*)::int FROM clients cl JOIN companies c ON c.id=cl.company_id WHERE c.archived_at IS NULL) AS clients");
+   const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM companies WHERE archived_at IS NULL) AS companies,(SELECT COUNT(*)::int FROM clients cl JOIN companies c ON c.id=cl.company_id WHERE c.archived_at IS NULL AND cl.archived_at IS NULL) AS clients");
    return res.json({role:req.user.role,companies:companies.rows,archived:archived.rows,counts:counts.rows[0]});
   }
   if(req.user.role==='controller' || (req.user.role==='master_admin_2' && req.companyContextId)){
    const scope=companyScope(req);
    const c=await pool.query('SELECT id,registered_name,covering_areas FROM companies WHERE id=$1 AND archived_at IS NULL',[scope]);
    if(!c.rowCount)return res.status(403).json({error:'Your company is unavailable. Contact the platform administrator.'});
-   const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM clients WHERE company_id=$1) AS clients,(SELECT COUNT(*)::int FROM incidents WHERE company_id=$1 AND status<>'Incident Resolved') AS open_incidents",[scope]);
+   const counts=await pool.query("SELECT (SELECT COUNT(*)::int FROM clients WHERE company_id=$1 AND archived_at IS NULL) AS clients,(SELECT COUNT(*)::int FROM incidents WHERE company_id=$1 AND status<>'Incident Resolved') AS open_incidents",[scope]);
    return res.json({role:'controller',company:c.rows[0],counts:counts.rows[0],workspace_admin:req.user.role==='master_admin_2'});
   }
   const r=await pool.query('SELECT id,incident_type,status,location_text,panic_at,updated_at FROM incidents WHERE client_id=(SELECT id FROM clients WHERE user_id=$1) ORDER BY panic_at DESC LIMIT 100',[req.user.id]);
