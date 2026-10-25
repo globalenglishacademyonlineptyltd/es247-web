@@ -12,7 +12,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=client-portal-family-requests17';
+    fix.src='/dashboard-fixes.js?v=master-client-pages-fix1';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
