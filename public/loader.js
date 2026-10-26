@@ -12,7 +12,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=menu-navigation-repair2';
+    fix.src='/dashboard-fixes.js?v=sidebar-delegation-fix1';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=menu-navigation-repair2';
+    app.src='/app.js?v=sidebar-delegation-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
