@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=panic-navigation-dollar-fix4';
+    app.src='/app.js?v=navigation-loop-fix5';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
