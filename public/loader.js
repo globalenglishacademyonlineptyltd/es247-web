@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=stable-live-incident-map-fix7';
+    app.src='/app.js?v=incident-map-no-dom-refresh-fix8';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
