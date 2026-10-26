@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=sidebar-delegation-fix1';
+    app.src='/app.js?v=open-panic-binding-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
