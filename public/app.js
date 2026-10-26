@@ -160,7 +160,10 @@ function updateIncidentMap(incidents){
  }
 }
 function initMap(){
- const el=$('#incident-map');if(!el||!window.L)return;if(state.map){state.map.remove();state.map=null;}state.incidentMarkers=new Map();
+ const el=$('#incident-map');if(!el||!window.L)return;
+ // Idempotent initialization: polling or a repeated navigation callback must never tear down a live map.
+ if(state.map&&state.map.getContainer&&state.map.getContainer()===el){updateIncidentMap(state.incidents);return;}
+ if(state.map){try{state.map.remove();}catch{}state.map=null;}state.incidentMarkers=new Map();
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const coords=state.incidents.filter(i=>i.status!=='Incident Resolved'&&i.latitude!=null&&i.longitude!=null&&Number.isFinite(Number(i.latitude))&&Number.isFinite(Number(i.longitude)));
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView(coords.length?[+coords[0].latitude,+coords[0].longitude]:[-29,24],coords.length?17:5);state.map=map;
