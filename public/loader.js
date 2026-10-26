@@ -12,7 +12,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=panic-live-tracking-nav-fix2';
+    fix.src='/dashboard-fixes.js?v=button-binding-repair1';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=panic-live-tracking-fix3';
+    app.src='/app.js?v=button-binding-repair1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
