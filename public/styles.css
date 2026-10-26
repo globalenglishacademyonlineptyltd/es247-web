@@ -64,3 +64,10 @@
 .dialog-body h3{margin:16px 0 8px}
 .dialog-body .timeline{margin:12px 0 16px;gap:12px}
 @media(max-width:560px){.dialog{width:calc(100% - 20px);padding:15px;border-radius:12px}.dialog-body>.card{padding:13px}}
+
+/* Incident detail panel layout */
+.dialog{width: min(920px, calc(100% - 32px)); border-radius:14px; padding:22px; box-sizing:border-box}
+.dialog-head{padding-bottom:12px;border-bottom:1px solid var(--line)}
+.dialog-body{margin-top:12px}
+.dialog-body>.card{margin:12px 0 14px;border-radius:12px;padding:18px}
+@media(max-width:560px){.dialog{width:calc(100% - 20px);padding:15px}.dialog-body>.card{padding:13px}}
