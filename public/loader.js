@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=incidents-google-maps-coordinates-fix11';
+    app.src='/app.js?v=incidents-heading-instructions-fix12';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
