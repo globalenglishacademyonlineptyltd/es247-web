@@ -16,11 +16,18 @@
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
-  function loadDashboardFixes(){
+  function loadUniversalMapFix(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=master-client-pages-fix3';
-    fix.onload=function(){installSafeBindings();loadClientPagesFix();};
-    fix.onerror=function(){loadClientPagesFix();};
+    fix.src='/map-universal-fix.js?v=maps-universal-20261026-1';
+    fix.onload=function(){installSafeBindings();try{window.dispatchEvent(new Event('es247:map-refresh'));}catch(e){}};
+    fix.onerror=function(){console.error('Universal map fix could not load.');};
+    document.body.appendChild(fix);
+  }
+  function loadMapLocationFix(){
+    var fix=document.createElement('script');
+    fix.src='/map-location-fix.js?v=maps-fix-20261025-3';
+    fix.onload=function(){installSafeBindings();loadUniversalMapFix();};
+    fix.onerror=function(){loadUniversalMapFix();};
     document.body.appendChild(fix);
   }
   function loadClientPagesFix(){
@@ -30,17 +37,18 @@
     fix.onerror=function(){loadCompanyAccessFix();loadMapLocationFix();};
     document.body.appendChild(fix);
   }
-  function loadMapLocationFix(){
+  function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/map-location-fix.js?v=maps-fix-20261025-3';
-    fix.onload=installSafeBindings;
+    fix.src='/dashboard-fixes.js?v=master-client-pages-fix3';
+    fix.onload=function(){installSafeBindings();loadClientPagesFix();};
+    fix.onerror=function(){loadClientPagesFix();};
     document.body.appendChild(fix);
   }
   function loadApp(){
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=maps-fix-20261025-3';
+    app.src='/app.js?v=maps-fix-20261026-1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
