@@ -12,7 +12,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=client-portal-family-requests17';
+    fix.src='/dashboard-fixes.js?v=client-hamburger-menu-fix1';
     fix.onload=installSafeBindings;
     document.body.appendChild(fix);
   }
@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=incident-alert-behavior2';
+    app.src='/app.js?v=incident-number-badge1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
