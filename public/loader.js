@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=incidents-compact-instructions-fix13';
+    app.src='/app.js?v=incident-panel-spacing-shape-fix14';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
