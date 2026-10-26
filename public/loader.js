@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=incident-map-no-dom-refresh-fix8';
+    app.src='/app.js?v=incident-map-init-guard-fix9';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
