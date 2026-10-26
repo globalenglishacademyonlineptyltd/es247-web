@@ -48,3 +48,8 @@
 .sidebar nav button.incident-nav-alert{background:#b91c1c!important;color:#fff!important;border:2px solid #ff4545!important;animation:incidentNavFlash .65s steps(1,end) infinite;box-shadow:0 0 0 3px #ef444477,0 0 22px #ef4444aa;font-weight:850}
 .sidebar nav button.incident-nav-alert .panic-nav-count{background:#fff;color:#b91c1c;border-color:#fff;box-shadow:0 0 0 3px #ffffff77}
 @keyframes incidentNavFlash{0%,49%{background:#b91c1c;color:#fff;box-shadow:0 0 0 3px #ef444477,0 0 22px #ef4444aa}50%,100%{background:#fff0f0;color:#991b1b;box-shadow:0 0 0 3px #ef444433,0 0 10px #ef444466}}
+
+/* Keep the active-panic badge aligned at the far right of the Incidents navigation button. */
+.sidebar nav button{display:flex;align-items:center;width:100%;gap:10px}
+.sidebar nav button>span{flex:1;min-width:0}
+.sidebar nav button .panic-nav-count{margin-left:auto;position:static;flex:0 0 auto}
