@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=incident-map-poll-stability-fix10';
+    app.src='/app.js?v=incidents-google-maps-coordinates-fix11';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
