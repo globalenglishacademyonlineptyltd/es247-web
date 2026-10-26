@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=panic-live-tracking-fix2';
+    app.src='/app.js?v=panic-live-tracking-fix3';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
