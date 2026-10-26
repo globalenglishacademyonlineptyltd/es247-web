@@ -20,7 +20,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=sidebar-navigation-modal-fix3';
+    app.src='/app.js?v=panic-navigation-dollar-fix4';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
