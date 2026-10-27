@@ -18,5 +18,26 @@ const companyCountsOld = "(SELECT COUNT(*)::int FROM clients WHERE company_id=$1
 const companyCountsNew = "(SELECT COUNT(*)::int FROM clients WHERE company_id=$1 AND archived_at IS NULL) AS clients,(SELECT COUNT(*)::int FROM clients cl JOIN users u ON u.id=cl.user_id WHERE cl.company_id=$1 AND cl.archived_at IS NULL AND u.active=false) AS paused_clients,(SELECT COUNT(*)::int FROM incidents WHERE company_id=$1 AND status<>'Incident Resolved') AS open_incidents";
 source = source.replace(companyCountsOld, companyCountsNew);
 
+const staticLine = "app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));";
+const appDownloadRoutes = `
+app.get(['/app','/app/'], (_req,res) => {
+  res.type('html').send(\`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071226"><title>ES 24/7 Client App</title><style>body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:#071226;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}.card{width:min(520px,100%);background:#101d36;border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}.logo{width:92px;height:92px;border-radius:22px;object-fit:cover;margin-bottom:16px}.brand{font-size:30px;font-weight:800;margin:0 0 8px}.subtitle{font-size:17px;line-height:1.5;opacity:.82;margin:0 0 26px}.button{display:inline-block;width:100%;padding:16px 20px;border:0;border-radius:14px;background:#e53935;color:#fff;font-size:18px;font-weight:800;text-decoration:none;cursor:pointer}.note{margin-top:24px;font-size:12px;line-height:1.5;opacity:.58}</style></head><body><main class="card"><img class="logo" src="/app-icon.png" alt="ES 24/7" onerror="this.style.display='none'"><h1 class="brand">Emergency Service 24/7</h1><p class="subtitle">Official ES 24/7 Client App<br>Secure emergency assistance and location sharing.</p><a class="button" href="/app/download">Download ES 24/7 App</a><p class="note">Official app download<br><strong>securitysolutionses247.co.za</strong></p></main></body></html>\`);
+});
+app.get('/app/download', async (_req,res) => {
+  try {
+    const response = await fetch('https://github.com/globalenglishacademyonlineptyltd/es247-andriod/releases/download/android-latest/app-release.apk',{redirect:'follow',cache:'no-store'});
+    if(!response.ok) return res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again.');
+    const data = await response.arrayBuffer();
+    res.setHeader('Content-Type','application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');
+    res.setHeader('Content-Length',String(data.byteLength));
+    res.send(Buffer.from(data));
+  } catch (e) {
+    console.error('App download failed:',e.message);
+    res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again.');
+  }
+});`;
+source = source.replace(staticLine, staticLine + appDownloadRoutes);
+
 fs.writeFileSync(serverPath, source);
 await import('./server.js');
