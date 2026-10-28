@@ -19,3 +19,14 @@
   #login-view .login-panel .tiny{text-align:center;margin-top:20px}
   #login-view .login-panel .tiny a{color:#ff7676;font-weight:700}
 }
+
+/* Exact uploaded ES 24/7 client home artwork. The four live panic controls are transparent hit areas over the artwork. */
+.es247-client-home{position:relative!important;width:min(100%,560px)!important;max-width:560px!important;margin:0 auto!important;min-height:0!important;aspect-ratio:2 / 3!important;overflow:hidden!important;background:#071226 url('/36131.png?v=es247-exact-client-art1') center top / 100% 100% no-repeat!important}
+.es247-client-home>.hero-logo,.es247-client-home>.client-welcome,.es247-client-home>.client-urgent,.es247-client-home .client-app-footer,.es247-client-home .client-panic-wrap>.notice{display:none!important}
+.es247-client-home .client-panic-wrap{position:absolute!important;inset:0!important;margin:0!important;padding:0!important;z-index:5!important}
+.es247-client-home .client-panic-grid{position:absolute!important;left:4.1%!important;right:4.1%!important;top:30.7%!important;bottom:14.8%!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;gap:2%!important;margin:0!important;padding:0!important}
+.es247-client-home .client-panic-button{min-height:0!important;width:100%!important;height:100%!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;overflow:hidden!important;transform:none!important;filter:none!important;opacity:1!important;color:transparent!important}
+.es247-client-home .client-panic-button:before,.es247-client-home .panic-vehicle-picture{display:none!important}
+.es247-client-home .client-panic-button:active,.es247-client-home .client-panic-button:hover,.es247-client-home .client-panic-button:focus{background:transparent!important;box-shadow:none!important;transform:none!important;filter:none!important}
+.es247-client-home .client-panic-button:focus-visible{outline:3px solid rgba(255,255,255,.9)!important;outline-offset:-6px!important}
+@media(max-width:560px){.es247-client-home{width:100%!important;max-width:560px!important}}
