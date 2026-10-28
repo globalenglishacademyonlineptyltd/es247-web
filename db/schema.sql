@@ -71,3 +71,52 @@ CREATE INDEX IF NOT EXISTS client_requests_company_idx ON client_requests(compan
 
 -- Preserve the device-reported GPS accuracy with each emergency location.
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS location_accuracy_m DOUBLE PRECISION;
+
+-- Each company has its own independent panic/incident numbering sequence.
+-- Existing incidents are backfilled in chronological order per company.
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS incident_number BIGINT;
+WITH numbered AS (
+  SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY panic_at, id) AS rn
+  FROM incidents
+)
+UPDATE incidents i
+SET incident_number=n.rn
+FROM numbered n
+WHERE i.id=n.id AND i.incident_number IS NULL;
+ALTER TABLE incidents ALTER COLUMN incident_number SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS incidents_company_incident_number_idx ON incidents(company_id,incident_number);
+
+CREATE TABLE IF NOT EXISTS company_incident_sequences (
+ company_id BIGINT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+ next_number BIGINT NOT NULL CHECK(next_number > 0)
+);
+
+-- Initialize each company's next number from its existing history. New companies start at #1.
+INSERT INTO company_incident_sequences(company_id,next_number)
+SELECT c.id, COALESCE(MAX(i.incident_number),0)+1
+FROM companies c
+LEFT JOIN incidents i ON i.company_id=c.id
+GROUP BY c.id
+ON CONFLICT(company_id) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION assign_company_incident_number()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.incident_number IS NULL THEN
+    INSERT INTO company_incident_sequences(company_id,next_number)
+    VALUES(NEW.company_id,2)
+    ON CONFLICT(company_id)
+    DO UPDATE SET next_number=company_incident_sequences.next_number+1
+    RETURNING next_number-1 INTO NEW.incident_number;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS incidents_assign_company_number ON incidents;
+CREATE TRIGGER incidents_assign_company_number
+BEFORE INSERT ON incidents
+FOR EACH ROW
+EXECUTE FUNCTION assign_company_incident_number();
