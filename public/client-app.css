@@ -20,42 +20,44 @@
   #login-view .login-panel .tiny a{color:#ff7676;font-weight:700}
 }
 
-/* ES 24/7 Client Home — the four emergency images are the actual clickable buttons. */
-.es247-client-home{position:relative!important;width:min(100%,560px)!important;max-width:560px!important;margin:0 auto!important;min-height:0!important;padding:0 4.1% 14.8%!important;box-sizing:border-box!important;background:#071226!important;overflow:hidden!important}
+/* ES 24/7 Client Home — exact uploaded artwork is the visible clickable button. */
+.es247-client-home{position:relative!important;width:min(100%,560px)!important;max-width:560px!important;margin:0 auto!important;min-height:0!important;padding:0 4.1% 6%!important;box-sizing:border-box!important;background:#071226!important;overflow:hidden!important}
 
-/* The official ES 24/7 logo is rendered separately above the controls. */
-.es247-client-home>.hero-logo{display:block!important;position:relative!important;width:100%!important;height:31%!important;min-height:180px!important;margin:0 auto!important;background:var(--es247-atlas-url) center top / 100% auto no-repeat!important;font-size:0!important;color:transparent!important}
+/* Exact uploaded ES 24/7 logo. */
+.es247-client-home>.hero-logo{display:block!important;position:relative!important;width:100%!important;height:auto!important;min-height:0!important;margin:0 auto!important;object-fit:contain!important;background:none!important;font-size:0!important;color:transparent!important}
+.es247-client-home>.hero-logo.es247-logo-image{height:auto!important;max-width:100%!important;object-fit:contain!important}
 
-/* Keep the requested wording between the logo and the emergency buttons. */
-.es247-client-home>.client-welcome{display:block!important;position:relative!important;margin:-1% 0 0!important;text-align:center!important;color:#24d8c0!important;font-size:clamp(21px,5.2vw,32px)!important;font-weight:800!important;line-height:1.12!important;letter-spacing:-.02em!important;text-shadow:0 2px 12px rgba(0,0,0,.55)!important}
-.es247-client-home>.client-urgent{display:block!important;position:relative!important;margin:1.5% 0 3.5%!important;text-align:center!important;color:#fff!important;font-size:clamp(17px,4.2vw,26px)!important;font-weight:700!important;line-height:1.15!important;text-shadow:0 2px 10px rgba(0,0,0,.55)!important}
-.es247-client-home .client-app-footer{display:block!important;position:relative!important;margin:7% 0 0!important;text-align:center!important;color:#8e9aab!important;font-size:13px!important}
+/* Requested wording between logo and buttons. */
+.es247-client-home>.client-welcome{display:block!important;position:relative!important;margin:3% 0 0!important;text-align:center!important;color:#24d8c0!important;font-size:clamp(21px,5.2vw,32px)!important;font-weight:800!important;line-height:1.12!important;letter-spacing:-.02em!important;text-shadow:0 2px 12px rgba(0,0,0,.55)!important}
+.es247-client-home>.client-urgent{display:block!important;position:relative!important;margin:1.5% 0 4%!important;text-align:center!important;color:#fff!important;font-size:clamp(17px,4.2vw,26px)!important;font-weight:700!important;line-height:1.15!important;text-shadow:0 2px 10px rgba(0,0,0,.55)!important}
 
-/* Functional grid: each real <button> contains one complete artwork panel. */
+/* No cards, colour blocks, overlays or extra wrappers behind the artwork. */
 .es247-client-home .client-panic-wrap{position:relative!important;width:100%!important;margin:0!important;padding:0!important;z-index:10!important;background:transparent!important}
-.es247-client-home .client-panic-grid{position:relative!important;width:100%!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;gap:16px!important;margin:0!important;padding:0!important;background:transparent!important}
+.es247-client-home .client-panic-grid{position:relative!important;width:100%!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;margin:0!important;padding:0!important;background:transparent!important;align-items:start!important}
 .es247-client-home .client-panic-button,
 .es247-client-home .client-panic-button:hover,
 .es247-client-home .client-panic-button:active,
-.es247-client-home .client-panic-button:focus{position:relative!important;min-height:0!important;width:100%!important;aspect-ratio:512 / 475!important;height:auto!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;background-image:none!important;box-shadow:none!important;overflow:hidden!important;transform:none!important;filter:none!important;opacity:1!important;color:transparent!important;appearance:none!important;-webkit-appearance:none!important}
+.es247-client-home .client-panic-button:focus{position:relative!important;display:block!important;width:100%!important;height:auto!important;min-height:0!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;background-image:none!important;box-shadow:none!important;overflow:hidden!important;transform:none!important;filter:none!important;opacity:1!important;color:transparent!important;appearance:none!important;-webkit-appearance:none!important;line-height:0!important}
 
-/* The picture itself is the visible button. There is no coloured overlay behind it. */
-.es247-client-home .panic-vehicle-picture{position:absolute!important;inset:0!important;z-index:1!important;display:block!important;width:100%!important;height:100%!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-position:center!important;background-color:transparent!important;box-shadow:none!important}
-.es247-client-home .panic-vehicle-ambulance{background-image:var(--es247-ambulance-url)!important}
-.es247-client-home .panic-vehicle-police{background-image:var(--es247-police-url)!important}
-.es247-client-home .panic-vehicle-fire{background-image:var(--es247-fire-url)!important}
-.es247-client-home .panic-vehicle-tow{background-image:var(--es247-tow-url)!important}
+/* The uploaded image IS the button. It is not a background image and is not covered by a block. */
+.es247-client-home .panic-vehicle-picture{position:relative!important;display:block!important;width:100%!important;height:auto!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important;object-fit:contain!important;object-position:center!important}
 
-/* Pressing a button gives a subtle physical 3D press without covering the artwork. */
-.es247-client-home .client-panic-button:active .panic-vehicle-picture{transform:translateY(5px);filter:brightness(.92)}
+/* Subtle physical press only; the artwork itself remains intact. */
+.es247-client-home .client-panic-button:active .panic-vehicle-picture{transform:translateY(4px);filter:brightness(.92)}
 .es247-client-home .client-panic-button:focus-visible{outline:3px solid rgba(255,255,255,.9)!important;outline-offset:-6px!important}
 .es247-client-home .client-panic-wrap>.notice{display:none!important}
 
+/* Remove the old footer: the requested home screen ends after the four buttons. */
+.es247-client-home .client-app-footer{display:none!important}
+
+/* The uploaded logo used on login/brand areas should display as the actual logo image. */
+.es247-logo-host{display:inline-flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
+.es247-logo-image{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;background:none!important;border:0!important}
+
 @media(max-width:560px){
-  .es247-client-home{width:100%!important;max-width:560px!important;padding-left:4.1%!important;padding-right:4.1%!important;padding-bottom:14.8%!important}
-  .es247-client-home>.hero-logo{height:30vw!important;min-height:150px!important;max-height:205px!important;background-size:100% auto!important}
-  .es247-client-home>.client-welcome{font-size:clamp(21px,6.2vw,30px)!important}
+  .es247-client-home{width:100%!important;max-width:560px!important;padding-left:4.1%!important;padding-right:4.1%!important;padding-bottom:5%!important}
+  .es247-client-home>.hero-logo{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important}
+  .es247-client-home>.client-welcome{font-size:clamp(21px,6.2vw,30px)!important;margin-top:3%!important}
   .es247-client-home>.client-urgent{font-size:clamp(17px,5vw,25px)!important;margin-bottom:4%!important}
-  .es247-client-home .client-panic-grid{gap:12px!important}
-  .es247-client-home .client-app-footer{margin-top:6%!important}
+  .es247-client-home .client-panic-grid{gap:10px!important}
 }
