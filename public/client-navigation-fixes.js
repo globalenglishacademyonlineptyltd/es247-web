@@ -35,21 +35,28 @@
   function ensureLogo() {
     var hamburger = document.getElementById('client-hamburger');
     if (!hamburger) return;
-    if (!document.getElementById('client-brand-home')) {
-      var logo = document.createElement('button');
+    var toggle = document.getElementById('client-menu-toggle');
+    var logo = document.getElementById('client-brand-home');
+    if (!logo) {
+      logo = document.createElement('button');
       logo.type = 'button';
       logo.id = 'client-brand-home';
       logo.setAttribute('aria-label', 'Panic Home');
       logo.setAttribute('title', 'Panic Home');
       logo.setAttribute('data-client-page', 'panic');
       logo.innerHTML = '<img src="' + logoSrc + '" alt="ES 24/7 company logo">';
-      hamburger.insertBefore(logo, hamburger.firstChild);
+    }
+    /* Required order: hamburger first, logo second, directly beside it. */
+    if (toggle && toggle.parentElement === hamburger) {
+      if (toggle.nextElementSibling !== logo) hamburger.insertBefore(logo, toggle.nextElementSibling);
+    } else if (logo.parentElement !== hamburger) {
+      hamburger.appendChild(logo);
     }
     var style = document.getElementById('client-navigation-fix-style');
     if (!style) {
       style = document.createElement('style');
       style.id = 'client-navigation-fix-style';
-      style.textContent = '#client-hamburger{display:flex!important;align-items:center!important;gap:8px!important;z-index:1000!important}#client-brand-home{width:46px!important;height:46px!important;padding:5px!important;margin:0!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:12px!important;background:#071226!important;display:flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;box-shadow:0 5px 18px rgba(0,0,0,.25)!important}#client-brand-home img{width:100%!important;height:100%!important;object-fit:contain!important;display:block!important}.client-menu-toggle{margin:0!important}';
+      style.textContent = '#client-hamburger{display:flex!important;align-items:center!important;gap:8px!important;z-index:1000!important}#client-menu-toggle{transform:none!important;margin:0!important}#client-brand-home{width:46px!important;height:46px!important;padding:5px!important;margin:0!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:12px!important;background:#071226!important;display:flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;box-shadow:0 5px 18px rgba(0,0,0,.25)!important}#client-brand-home img{width:100%!important;height:100%!important;object-fit:contain!important;display:block!important}.client-menu-toggle{margin:0!important}';
       document.head.appendChild(style);
     }
   }
@@ -58,7 +65,6 @@
     bound = true;
     ensureLogo();
 
-    // One capture listener handles both the hamburger and the outside-tap dismissal.
     document.addEventListener('click', function (event) {
       if (!isClientWorkspace()) return;
       var hamburger = document.getElementById('client-hamburger');
@@ -91,14 +97,12 @@
       }
     }, true);
 
-    // Android/iOS back gestures now travel through the client pages instead of exiting.
     window.addEventListener('popstate', function (event) {
       if (!isClientWorkspace()) return;
       event.stopImmediatePropagation();
       navigate(event.state && event.state.es247ClientPage ? event.state.es247ClientPage : 'dashboard', false);
     }, true);
 
-    // Establish a single in-app starting point for the client workspace.
     history.replaceState({ es247ClientPage: 'dashboard' }, '', location.href);
   }
 
