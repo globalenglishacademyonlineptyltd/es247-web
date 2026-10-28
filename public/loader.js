@@ -11,8 +11,16 @@
     }catch(err){console.error('Dashboard binding guard failed:',err)}
   }
   function loadBrandOverrides(){
-    var css=document.createElement('link');css.rel='stylesheet';css.href='/brand-overrides.css?v=es247-uploaded-artwork-final3';document.head.appendChild(css);
-    var brand=document.createElement('script');brand.src='/brand-overrides.js?v=es247-uploaded-artwork-final3';brand.onload=function(){if(typeof window.es247BrandReady==='function')window.es247BrandReady();};document.body.appendChild(brand);
+    var css=document.createElement('link');css.rel='stylesheet';css.href='/brand-overrides.css?v=es247-uploaded-artwork-final5';document.head.appendChild(css);
+    var brand=document.createElement('script');brand.src='/brand-overrides.js?v=es247-uploaded-artwork-final5';brand.onload=function(){
+      if(typeof window.es247BrandReady==='function')window.es247BrandReady();
+      /* The client workspace can render before the asynchronously loaded brand
+         override arrives. Re-render the client home once the exact artwork code
+         is available so the original emoji/card UI can never replace it. */
+      if(document.querySelector('#workspace-view.client-workspace')&&typeof window.panicPage==='function'){
+        window.panicPage();
+      }
+    };document.body.appendChild(brand);
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
