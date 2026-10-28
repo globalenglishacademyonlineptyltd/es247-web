@@ -32,10 +32,15 @@
       });
     }
   }
+
   function ensureLogo() {
-    var hamburger = document.getElementById('client-hamburger');
-    if (!hamburger) return;
     var toggle = document.getElementById('client-menu-toggle');
+    if (!toggle) return;
+
+    var hamburger = document.getElementById('client-hamburger');
+    if (!hamburger) hamburger = toggle.parentElement;
+    if (!hamburger) return;
+
     var logo = document.getElementById('client-brand-home');
     if (!logo) {
       logo = document.createElement('button');
@@ -46,20 +51,23 @@
       logo.setAttribute('data-client-page', 'panic');
       logo.innerHTML = '<img src="' + logoSrc + '" alt="ES 24/7 company logo">';
     }
-    /* Required order: hamburger first, logo second, directly beside it. */
-    if (toggle && toggle.parentElement === hamburger) {
-      if (toggle.nextElementSibling !== logo) hamburger.insertBefore(logo, toggle.nextElementSibling);
-    } else if (logo.parentElement !== hamburger) {
-      hamburger.appendChild(logo);
-    }
+
+    // Put the two controls in one compact group. The hamburger MUST be first,
+    // and the logo MUST be its immediate next sibling.
+    if (logo.parentElement !== hamburger) hamburger.appendChild(logo);
+    if (toggle.parentElement !== hamburger) hamburger.appendChild(toggle);
+    hamburger.insertBefore(toggle, hamburger.firstChild);
+    hamburger.insertBefore(logo, toggle.nextSibling);
+
     var style = document.getElementById('client-navigation-fix-style');
     if (!style) {
       style = document.createElement('style');
       style.id = 'client-navigation-fix-style';
-      style.textContent = '#client-hamburger{display:flex!important;align-items:center!important;gap:8px!important;z-index:1000!important}#client-menu-toggle{transform:none!important;margin:0!important}#client-brand-home{width:46px!important;height:46px!important;padding:5px!important;margin:0!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:12px!important;background:#071226!important;display:flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;box-shadow:0 5px 18px rgba(0,0,0,.25)!important}#client-brand-home img{width:100%!important;height:100%!important;object-fit:contain!important;display:block!important}.client-menu-toggle{margin:0!important}';
       document.head.appendChild(style);
     }
+    style.textContent = '\n#client-hamburger{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:8px!important;position:fixed!important;top:16px!important;left:16px!important;width:max-content!important;height:auto!important;margin:0!important;padding:0!important;z-index:10000!important}\n#client-hamburger #client-menu-toggle{display:flex!important;position:relative!important;order:1!important;flex:0 0 auto!important;transform:none!important;margin:0!important}\n#client-hamburger #client-brand-home{display:flex!important;position:relative!important;order:2!important;flex:0 0 auto!important;width:46px!important;height:46px!important;padding:5px!important;margin:0!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:12px!important;background:#071226!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;box-shadow:0 5px 18px rgba(0,0,0,.25)!important}\n#client-hamburger #client-brand-home img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;margin:0!important}\n';
   }
+
   function bind() {
     if (bound || !isClientWorkspace()) return;
     bound = true;
