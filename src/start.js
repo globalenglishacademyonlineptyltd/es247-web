@@ -25,11 +25,11 @@ app.get(['/app','/app/','/download','/download/'], (_req,res) => {
 });
 app.get('/app/download', async (_req,res) => {
   try {
-    const response = await fetch('https://github.com/globalenglishacademyonlineptyltd/es247-andriod/releases/download/android-latest/app-release.apk',{redirect:'follow',cache:'no-store'});
+    const response = await fetch('https://github.com/globalenglishacademyonlineptyltd/es247-andriod/releases/latest/download/ES-24-7-Client-App.apk',{redirect:'follow',cache:'no-store'});
     if(!response.ok) return res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again.');
     const data = await response.arrayBuffer();
     res.setHeader('Content-Type','application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition','attachment; filename="ES-24-7-App.apk"');
+    res.setHeader('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');
     res.setHeader('Content-Length',String(data.byteLength));
     res.setHeader('Cache-Control','no-store');
     res.send(Buffer.from(data));
