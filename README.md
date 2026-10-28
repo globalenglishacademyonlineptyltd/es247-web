@@ -38,8 +38,8 @@ Never commit `.env` or share passwords in chat. Do not use a shared/default JWT 
 3. Add the required variables in Railway; do not place secrets in source code.
 4. Verify `/health`, sign-in, password changes, master/company isolation, incident updates, reset emails and database recovery before announcing production readiness.
 
-## Local setup
-
-Use Node.js 20+ and PostgreSQL. Set the variables above, run `npm install`, then `npm start`. Run `npm run check` for JavaScript syntax checks.
-
 See [MOBILE_API.md](MOBILE_API.md) for the Android API contract.
+
+## Release note — 2026-10-28
+
+The production app-download page is intended to deliver the ES 24/7 Android release through the branded domain, with no GitHub or Railway page exposed to clients. This commit is a deployment retry trigger after a Railway BuildKit infrastructure failure; application code is unchanged.
