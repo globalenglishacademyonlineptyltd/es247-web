@@ -41,12 +41,12 @@
 .es247-logo-image{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;background:none!important;border:0!important}
 
 /* Client header: hamburger first, company logo immediately beside it, level and side-by-side. */
-#client-hamburger{display:flex!important;align-items:center!important;gap:8px!important;z-index:1000!important}
-#client-menu-toggle{transform:none!important;margin:0!important}
+#client-hamburger{display:flex!important;align-items:center!important;gap:8px!important;z-index:1000!important;flex-direction:row!important}
+#client-menu-toggle{transform:none!important;margin:0!important;order:1!important}
+#client-brand-home{order:2!important;margin:0!important;flex:0 0 auto!important}
 #client-hamburger .client-menu-toggle,
 #client-hamburger .menu-toggle,
-#client-hamburger .mobile-menu-toggle{transform:none!important;margin:0!important}
-#client-hamburger #client-brand-home{margin:0!important;flex:0 0 auto!important}
+#client-hamburger .mobile-menu-toggle{transform:none!important;margin:0!important;order:1!important}
 .client-workspace button[aria-label*="menu" i],
 .client-workspace button[title*="menu" i]{transform:none!important}
 
