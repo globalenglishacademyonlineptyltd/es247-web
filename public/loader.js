@@ -10,10 +10,14 @@
       }
     }catch(err){console.error('Dashboard binding guard failed:',err)}
   }
+  function loadBrandOverrides(){
+    var css=document.createElement('link');css.rel='stylesheet';css.href='/brand-overrides.css?v=es247-professional-buttons2';document.head.appendChild(css);
+    var brand=document.createElement('script');brand.src='/brand-overrides.js?v=es247-professional-buttons2';brand.onload=function(){if(typeof window.es247BrandReady==='function')window.es247BrandReady();};document.body.appendChild(brand);
+  }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
     fix.src='/dashboard-fixes.js?v=sidebar-delegation-fix1';
-    fix.onload=installSafeBindings;
+    fix.onload=function(){installSafeBindings();loadBrandOverrides();};
     document.body.appendChild(fix);
   }
   function loadApp(){
