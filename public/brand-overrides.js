@@ -105,3 +105,46 @@
   window.panicPage=panicPage;
   installLogos();
 })();
+
+// Company-local panic numbering: the database keeps a persistent incident_number
+// for each company, while the internal incident id remains globally unique.
+(function(){
+  function localNumber(i){return i&&i.incident_number!=null?i.incident_number:i&&i.id;}
+
+  if(typeof incidentTable==='function'){
+    window.incidentTable=function(inc){
+      inc=Array.isArray(inc)?inc:[];
+      return '<div class="section-head"><h2>Incidents and panic records</h2><input id="incident-search" placeholder="Search panics…" style="max-width:250px;background:#0b1421;border:1px solid var(--line);padding:10px;border-radius:9px;color:var(--text)"></div><div class="table-wrap" id="incident-table"><table><thead><tr><th>Panic</th><th>Client</th><th>Activated by client</th><th>Received by company</th><th>Status</th><th></th></tr></thead><tbody>'+(inc.length?inc.map(function(i){return '<tr><td><strong>'+esc(i.incident_type)+'</strong><br><small class="muted">#'+esc(localNumber(i))+'</small></td><td><button class="company-name-link" data-incident="'+i.id+'">'+esc(i.client_name||'Client')+'</button></td><td>'+date(i.client_activated_at||i.panic_at)+'</td><td>'+date(i.panic_at)+'</td><td>'+pill(i.status)+'</td><td><button class="btn outline small" data-incident="'+i.id+'">Open panic</button></td></tr>';}).join(''):'<tr><td colspan="6" class="empty">No panics have been received.</td></tr>')+'</tbody></table></div>';
+    };
+  }
+
+  if(typeof incidentPopup==='function'){
+    window.incidentPopup=function(i){
+      var accuracy=i.location_accuracy_m!=null?'Device-reported accuracy: ±'+Math.round(Number(i.location_accuracy_m))+' m':'GPS accuracy not reported';
+      return '<strong>'+esc(i.incident_type)+' #'+esc(localNumber(i))+'</strong><br>'+esc(i.client_name||'Client')+'<br>'+esc(i.status)+'<br>'+esc(accuracy);
+    };
+  }
+
+  if(typeof openIncident==='function'){
+    var originalOpenIncident=window.openIncident;
+    window.openIncident=async function(id){
+      await originalOpenIncident(id);
+      var i=(state.incidents||[]).find(function(x){return String(x.id)===String(id);});
+      if(i&&document.querySelector('#dialog-title')){
+        document.querySelector('#dialog-title').textContent=i.incident_type+' · #'+localNumber(i);
+      }
+    };
+  }
+
+  if(typeof loadClientIncidents==='function'){
+    window.loadClientIncidents=async function(){
+      try{
+        var d=await api('/api/client/incidents');
+        d.incidents=Array.isArray(d&&d.incidents)?d.incidents:[];
+        var host=document.querySelector('#client-incidents');
+        if(!host)return;
+        host.innerHTML='<div class="card" style="margin-top:18px"><h2>My Incident History</h2>'+(d.incidents.length?d.incidents.map(function(i){return '<p>'+pill(i.status)+' <strong>'+esc(i.incident_type)+' #'+esc(localNumber(i))+'</strong><br><small class="muted">'+date(i.panic_at)+' · '+esc(i.location_text||'Location unavailable')+'</small></p>';}).join(''):'<p class="empty">No incidents yet.</p>')+'</div>';
+      }catch{}
+    };
+  }
+})();
