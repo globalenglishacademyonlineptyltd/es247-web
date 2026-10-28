@@ -54,6 +54,6 @@
   primary.onerror=loadFallback;
   document.head.appendChild(primary);
   var clientNavigation=document.createElement('script');
-  clientNavigation.src='/client-navigation-fixes.js?v=outside-tap-back-navigation1';
+  clientNavigation.src='/client-navigation-fixes.js?v=client-menu-back-logo-fix2';
   document.body.appendChild(clientNavigation);
 })();
