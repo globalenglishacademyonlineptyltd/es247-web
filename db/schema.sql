@@ -54,7 +54,6 @@ ALTER TABLE incidents DROP COLUMN IF EXISTS device_ip;
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS client_activated_at TIMESTAMPTZ;
 
-
 ALTER TABLE incidents DROP CONSTRAINT IF EXISTS incidents_incident_type_check;
 ALTER TABLE incidents ADD CONSTRAINT incidents_incident_type_check CHECK(incident_type IN ('Emergency Service','Accident','Fire Panic','Other','Panic: Ambulance Assistance Needed','Panic: Police Assistance Needed','Panic: Fire Fighter Assistance Needed','Panic: Tow Truck Assistance Needed'));
 CREATE TABLE IF NOT EXISTS client_requests (
@@ -69,11 +68,9 @@ CREATE TABLE IF NOT EXISTS client_requests (
 );
 CREATE INDEX IF NOT EXISTS client_requests_company_idx ON client_requests(company_id,status,created_at DESC);
 
--- Preserve the device-reported GPS accuracy with each emergency location.
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS location_accuracy_m DOUBLE PRECISION;
 
 -- Each company has its own independent panic/incident numbering sequence.
--- Existing incidents are backfilled in chronological order per company.
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS incident_number BIGINT;
 WITH numbered AS (
   SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY panic_at, id) AS rn
@@ -91,7 +88,6 @@ CREATE TABLE IF NOT EXISTS company_incident_sequences (
  next_number BIGINT NOT NULL CHECK(next_number > 0)
 );
 
--- Initialize each company's next number from its existing history. New companies start at #1.
 INSERT INTO company_incident_sequences(company_id,next_number)
 SELECT c.id, COALESCE(MAX(i.incident_number),0)+1
 FROM companies c
@@ -120,3 +116,37 @@ CREATE TRIGGER incidents_assign_company_number
 BEFORE INSERT ON incidents
 FOR EACH ROW
 EXECUTE FUNCTION assign_company_incident_number();
+
+-- One-time repair for any incidents created before the company-local numbering
+-- migration was fully applied. This makes the existing history company-local,
+-- then preserves the resulting next number for each company permanently.
+CREATE TABLE IF NOT EXISTS company_incident_numbering_repairs (
+ repair_key TEXT PRIMARY KEY,
+ repaired_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM company_incident_numbering_repairs WHERE repair_key='company-local-v1') THEN
+    WITH numbered AS (
+      SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY panic_at, id) AS rn
+      FROM incidents
+    )
+    UPDATE incidents i
+    SET incident_number=n.rn
+    FROM numbered n
+    WHERE i.id=n.id;
+
+    INSERT INTO company_incident_sequences(company_id,next_number)
+    SELECT c.id, COALESCE(MAX(i.incident_number),0)+1
+    FROM companies c
+    LEFT JOIN incidents i ON i.company_id=c.id
+    GROUP BY c.id
+    ON CONFLICT(company_id)
+    DO UPDATE SET next_number=EXCLUDED.next_number;
+
+    INSERT INTO company_incident_numbering_repairs(repair_key)
+    VALUES('company-local-v1');
+  END IF;
+END;
+$$;
