@@ -24,8 +24,8 @@
 .es247-client-home{position:relative!important;width:min(100%,560px)!important;max-width:560px!important;margin:0 auto!important;min-height:0!important;padding:52px 4.1% 18px!important;box-sizing:border-box!important;background:#071226!important;overflow:hidden!important}
 
 /* Exact uploaded ES 24/7 logo. */
-.es247-client-home>.hero-logo{display:block!important;position:relative!important;width:100%!important;height:auto!important;min-height:0!important;margin:0 auto!important;object-fit:contain!important;background:none!important;font-size:0!important;color:transparent!important}
-.es247-client-home>.hero-logo.es247-logo-image{height:auto!important;max-width:100%!important;object-fit:contain!important}
+.es247-client-home>.hero-logo{display:block!important;position:relative!important;width:auto!important;height:80px!important;min-height:0!important;max-width:100%!important;max-height:80px!important;margin:0 auto!important;object-fit:contain!important;background:none!important;font-size:0!important;color:transparent!important}
+.es247-client-home>.hero-logo.es247-logo-image{width:auto!important;height:80px!important;max-width:100%!important;max-height:80px!important;object-fit:contain!important}
 
 /* Requested wording between logo and buttons. */
 .es247-client-home>.client-welcome{display:block!important;position:relative!important;margin:3% 0 0!important;text-align:center!important;color:#24d8c0!important;font-size:clamp(21px,5.2vw,32px)!important;font-weight:800!important;line-height:1.12!important;letter-spacing:-.02em!important;text-shadow:0 2px 12px rgba(0,0,0,.55)!important}
@@ -62,11 +62,11 @@
 .client-workspace .mobile-menu-toggle{transform:translateY(14px)!important}
 
 @media(max-width:560px){
-  .es247-client-home{width:100%!important;max-width:560px!important;padding:52px 4.1% 18px!important}
+  .es247-client-home{width:100%!important;max-width:560px!important;padding:40px 4.1% 12px!important}
   /* Only the home-page logo is reduced so the complete emergency panel fits on one screen. */
-  .es247-client-home>.hero-logo{width:auto!important;height:auto!important;min-height:0!important;max-width:100%!important;max-height:150px!important;margin-left:auto!important;margin-right:auto!important;object-fit:contain!important}
-  .es247-client-home>.client-welcome{font-size:clamp(21px,6.2vw,30px)!important;margin-top:3%!important}
-  .es247-client-home>.client-urgent{font-size:clamp(17px,5vw,25px)!important;margin-bottom:4%!important}
+  .es247-client-home>.hero-logo{width:auto!important;height:80px!important;min-height:0!important;max-width:100%!important;max-height:80px!important;margin-left:auto!important;margin-right:auto!important;object-fit:contain!important}
+  .es247-client-home>.client-welcome{font-size:clamp(21px,6.2vw,30px)!important;margin-top:2%!important}
+  .es247-client-home>.client-urgent{font-size:clamp(17px,5vw,25px)!important;margin-bottom:3%!important}
   .es247-client-home .client-panic-grid{gap:10px!important}
-  .es247-client-home .es247-client-footer{margin-top:28px!important;font-size:12px!important}
+  .es247-client-home .es247-client-footer{margin-top:20px!important;font-size:12px!important}
 }
