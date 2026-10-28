@@ -38,7 +38,10 @@ app.get('/app/download', async (_req,res) => {
     res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again.');
   }
 });`;
-source = source.replace(staticLine, staticLine + appDownloadRoutes);
+
+// The /app directory contains a legacy index.html. Register the download routes
+// before express.static so /app cannot be swallowed by that legacy file.
+source = source.replace(staticLine, appDownloadRoutes + '\n' + staticLine);
 
 fs.writeFileSync(serverPath, source);
 await import('./server.js');
