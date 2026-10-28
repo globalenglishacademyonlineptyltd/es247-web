@@ -53,4 +53,7 @@
   primary.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
   primary.onerror=loadFallback;
   document.head.appendChild(primary);
+  var clientNavigation=document.createElement('script');
+  clientNavigation.src='/client-navigation-fixes.js?v=outside-tap-back-navigation1';
+  document.body.appendChild(clientNavigation);
 })();
