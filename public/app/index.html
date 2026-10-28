@@ -6,37 +6,16 @@
   <meta name="theme-color" content="#08162f">
   <title>ES 24/7 Client App</title>
   <style>
-    :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:#071226;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px}.card{width:min(520px,100%);background:#101d36;border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}.logo{width:92px;height:92px;border-radius:22px;object-fit:cover;margin-bottom:16px}.brand{font-size:30px;font-weight:800;margin:0 0 8px}.subtitle{font-size:17px;line-height:1.5;opacity:.82;margin:0 0 26px}.button{display:inline-block;width:100%;padding:16px 20px;border:0;border-radius:14px;background:#e53935;color:#fff;font-size:18px;font-weight:800;cursor:pointer;text-decoration:none}.button:disabled{opacity:.55;cursor:wait}.status{min-height:24px;margin-top:16px;font-size:14px;opacity:.8}.note{margin-top:24px;font-size:12px;line-height:1.5;opacity:.58}.domain{font-weight:700;word-break:break-word}.ok{color:#9ee7b1}.error{color:#ffb4b4}</style>
+    :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:#071226;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px}.card{width:min(520px,100%);background:#101d36;border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}.logo{width:92px;height:92px;border-radius:22px;object-fit:cover;margin-bottom:16px}.brand{font-size:30px;font-weight:800;margin:0 0 8px}.subtitle{font-size:17px;line-height:1.5;opacity:.82;margin:0 0 26px}.button{display:inline-block;width:100%;padding:16px 20px;border:0;border-radius:14px;background:#e53935;color:#fff;font-size:18px;font-weight:800;cursor:pointer;text-decoration:none}.status{min-height:24px;margin-top:16px;font-size:14px;opacity:.8}.note{margin-top:24px;font-size:12px;line-height:1.5;opacity:.58}.domain{font-weight:700;word-break:break-word}</style>
 </head>
 <body>
   <main class="card">
     <img class="logo" src="/app-icon.png" alt="ES 24/7" onerror="this.style.display='none'">
     <h1 class="brand">Emergency Service 24/7</h1>
     <p class="subtitle">Official ES 24/7 Client App<br>Secure emergency assistance and location sharing.</p>
-    <button class="button" id="download">Download ES 24/7 App</button>
-    <div class="status" id="status">Preparing the secure download…</div>
+    <a class="button" id="download" href="/app/download">Download ES 24/7 App</a>
+    <div class="status" id="status">Secure ES 24/7 app download</div>
     <p class="note">Official app download<br><span class="domain">securitysolutionses247.co.za</span></p>
   </main>
-<script>
-const button=document.getElementById('download');
-const status=document.getElementById('status');
-const apk='https://github.com/globalenglishacademyonlineptyltd/es247-andriod/releases/download/android-latest/app-release.apk';
-async function downloadApp(){
-  button.disabled=true; status.textContent='Preparing the ES 24/7 app…'; status.className='status';
-  try{
-    const response=await fetch(apk,{cache:'no-store'});
-    if(!response.ok) throw new Error('Download unavailable');
-    const blob=await response.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='ES-24-7-Client-App.apk'; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),10000);
-    status.textContent='Download started. Open the APK when it finishes.'; status.className='status ok';
-  }catch(e){
-    status.textContent='The secure download could not start. Please try again in a moment.'; status.className='status error';
-    console.error(e);
-  }finally{button.disabled=false;}
-}
-button.addEventListener('click',downloadApp);
-</script>
 </body>
 </html>
