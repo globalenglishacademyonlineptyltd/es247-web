@@ -35,16 +35,26 @@
   function ensureLogo() {
     var hamburger = document.getElementById('client-hamburger');
     if (!hamburger) return;
-    if (!document.getElementById('client-brand-home')) {
-      var logo = document.createElement('button');
+    var toggle = document.getElementById('client-menu-toggle');
+    var logo = document.getElementById('client-brand-home');
+
+    if (!logo) {
+      logo = document.createElement('button');
       logo.type = 'button';
       logo.id = 'client-brand-home';
       logo.setAttribute('aria-label', 'Panic Home');
       logo.setAttribute('title', 'Panic Home');
       logo.setAttribute('data-client-page', 'panic');
       logo.innerHTML = '<img src="' + logoSrc + '" alt="ES 24/7 company logo">';
+    }
+
+    // Required order: hamburger first, company logo second.
+    if (toggle && toggle.nextElementSibling !== logo) {
+      hamburger.insertBefore(logo, toggle.nextSibling);
+    } else if (!toggle && hamburger.firstElementChild !== logo) {
       hamburger.insertBefore(logo, hamburger.firstChild);
     }
+
     var style = document.getElementById('client-navigation-fix-style');
     if (!style) {
       style = document.createElement('style');
