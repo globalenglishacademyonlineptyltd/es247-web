@@ -2,21 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#071226">
-  <title>ES 24/7 Client App</title>
+  <title>ES 24/7 Client App Download</title>
   <style>
-    :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:#071226;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px}.card{width:min(520px,100%);background:linear-gradient(145deg,#13223c,#0b1528);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:32px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.48)}.es-logo{position:relative;width:190px;height:130px;margin:0 auto 14px}.ring{position:absolute;inset:7px;border-radius:50%;background:conic-gradient(from 210deg,#f20b27 0 33%,#071226 33% 50%,#1677ff 50% 83%,#071226 83%);filter:drop-shadow(0 0 14px rgba(22,119,255,.35))}.shield{position:absolute;left:31px;right:31px;top:8px;bottom:8px;clip-path:polygon(50% 0,92% 20%,82% 72%,50% 100%,18% 72%,8% 20%);background:linear-gradient(145deg,#f5f7fb,#66778f 45%,#eef2f8 47%,#263348);display:grid;place-items:center}.shield:after{content:"";position:absolute;inset:6px;clip-path:inherit;background:linear-gradient(145deg,#111d32,#071226 60%,#162d55);z-index:-1}.fleet{position:absolute;left:28px;right:28px;bottom:16px;display:flex;justify-content:space-between;font-size:27px;filter:drop-shadow(0 6px 5px rgba(0,0,0,.55))}.pulse{font-size:52px;font-weight:900;color:#fff;text-shadow:0 0 14px rgba(255,255,255,.8)}.brand{font-size:30px;font-weight:800;margin:0 0 8px}.subtitle{font-size:17px;line-height:1.5;opacity:.82;margin:0 0 26px}.button{display:inline-block;width:100%;padding:17px 20px;border:0;border-radius:16px;background:linear-gradient(145deg,#ff3145,#c8081d);color:#fff;font-size:18px;font-weight:800;cursor:pointer;text-decoration:none;box-shadow:inset 0 2px 0 rgba(255,255,255,.3),0 8px 0 #78000d,0 18px 30px rgba(0,0,0,.35)}.button:active{transform:translateY(6px);box-shadow:inset 0 2px 0 rgba(255,255,255,.25),0 2px 0 #78000d,0 8px 16px rgba(0,0,0,.3)}.status{min-height:24px;margin-top:16px;font-size:14px;opacity:.8}.note{margin-top:24px;font-size:12px;line-height:1.5;opacity:.58}.domain{font-weight:700;word-break:break-word}
+    :root{color-scheme:dark}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;min-height:100%;background:#071226;color:#fff;font-family:Arial,sans-serif}
+    body{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:18px 16px;overflow:hidden}
+    .card{width:min(520px,100%);background:linear-gradient(145deg,#13223c,#0b1528);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:26px 28px 24px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.48)}
+    .logo{display:block;width:min(210px,58vw);height:auto;max-height:150px;object-fit:contain;margin:0 auto 12px;border-radius:4px}
+    .brand{font-size:clamp(28px,7vw,38px);line-height:1.08;font-weight:800;margin:0 0 10px}
+    .subtitle{font-size:clamp(16px,4.2vw,19px);line-height:1.45;opacity:.82;margin:0 0 24px}
+    .button{display:flex;align-items:center;justify-content:center;width:100%;min-height:58px;padding:15px 20px;border:0;border-radius:16px;background:linear-gradient(145deg,#ff3145,#c8081d);color:#fff;font-size:clamp(17px,4.5vw,20px);font-weight:800;cursor:pointer;text-decoration:none;box-shadow:inset 0 2px 0 rgba(255,255,255,.3),0 7px 0 #78000d,0 16px 28px rgba(0,0,0,.35)}
+    .button:active{transform:translateY(5px);box-shadow:inset 0 2px 0 rgba(255,255,255,.25),0 2px 0 #78000d,0 8px 16px rgba(0,0,0,.3)}
+    .status{min-height:22px;margin-top:15px;font-size:14px;opacity:.78}
+    .note{margin:22px 0 0;font-size:12px;line-height:1.5;opacity:.58}
+    .domain{font-weight:700;word-break:break-word}
+    @media (max-height:700px){
+      body{padding:10px 14px}
+      .card{padding:18px 22px 16px;border-radius:24px}
+      .logo{width:min(165px,48vw);max-height:105px;margin-bottom:7px}
+      .brand{font-size:28px;margin-bottom:7px}
+      .subtitle{font-size:15px;margin-bottom:17px}
+      .button{min-height:52px;padding:12px 16px}
+      .status{margin-top:11px}
+      .note{margin-top:15px}
+    }
   </style>
 </head>
 <body>
   <main class="card">
-    <div class="es-logo" aria-label="ES 24/7 logo"><div class="ring"></div><div class="shield"><span class="pulse">⌁</span></div><div class="fleet"><span>🚑</span><span>🚔</span><span>🚒</span><span>🚛</span></div></div>
+    <img class="logo" src="/ChatGPT%20Image%20Oct%2028%2C%202026%2C%2012_54_29%20PM.png?v=es247-logo-20261028" alt="Emergency Service 24/7">
     <h1 class="brand">Emergency Service 24/7</h1>
     <p class="subtitle">Official ES 24/7 Client App<br>Secure emergency assistance and location sharing.</p>
     <a class="button" id="download" href="/app/download">Download ES 24/7 App</a>
-    <div class="status" id="status">Secure ES 24/7 app download</div>
+    <div class="status" id="status">Official app download</div>
     <p class="note">Official app download<br><span class="domain">securitysolutionses247.co.za</span></p>
   </main>
+  <script>
+    document.getElementById('download').addEventListener('click',function(){
+      document.getElementById('status').textContent='Preparing the secure download...';
+    });
+  </script>
 </body>
 </html>
