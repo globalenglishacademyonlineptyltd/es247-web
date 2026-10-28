@@ -63,7 +63,8 @@
 
 @media(max-width:560px){
   .es247-client-home{width:100%!important;max-width:560px!important;padding:52px 4.1% 18px!important}
-  .es247-client-home>.hero-logo{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important}
+  /* Only the home-page logo is reduced so the complete emergency panel fits on one screen. */
+  .es247-client-home>.hero-logo{width:auto!important;height:auto!important;min-height:0!important;max-width:100%!important;max-height:150px!important;margin-left:auto!important;margin-right:auto!important;object-fit:contain!important}
   .es247-client-home>.client-welcome{font-size:clamp(21px,6.2vw,30px)!important;margin-top:3%!important}
   .es247-client-home>.client-urgent{font-size:clamp(17px,5vw,25px)!important;margin-bottom:4%!important}
   .es247-client-home .client-panic-grid{gap:10px!important}
