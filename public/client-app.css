@@ -54,12 +54,14 @@
 .es247-logo-host{display:inline-flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
 .es247-logo-image{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;background:none!important;border:0!important}
 
-/* Keep the existing client hamburger/menu control, but place it slightly lower so it does not crowd the top edge. */
-.client-menu-toggle{transform:translateY(14px)!important}
+/* Client header: keep the hamburger and company logo exactly level and side-by-side. */
+#client-hamburger{display:flex!important;align-items:center!important;gap:8px!important;z-index:1000!important}
+#client-menu-toggle{transform:none!important;margin:0!important}
+#client-hamburger .client-menu-toggle,
+#client-hamburger .menu-toggle,
+#client-hamburger .mobile-menu-toggle{transform:none!important;margin:0!important}
 .client-workspace button[aria-label*="menu" i],
-.client-workspace button[title*="menu" i],
-.client-workspace .menu-toggle,
-.client-workspace .mobile-menu-toggle{transform:translateY(14px)!important}
+.client-workspace button[title*="menu" i]{transform:none!important}
 
 @media(max-width:560px){
   .es247-client-home{width:100%!important;max-width:560px!important;padding:40px 4.1% 12px!important}
