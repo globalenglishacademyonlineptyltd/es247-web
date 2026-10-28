@@ -1,6 +1,6 @@
 (function(){
   var ASSETS={
-    logo:'/ChatGPT%20Image%20Oct%2028%2C%202026%2C%2012_24_36%20PM.png',
+    logo:'/ChatGPT%20Image%20Oct%2028%2C%202026%2C%2012_54_29%20PM.png',
     ambulance:'/ChatGPT%20Image%20Oct%2028%2C%202026%2C%2012_24_44%20PM.png',
     police:'/ChatGPT%20Image%20Oct%2028%2C%202026%2C%2012_24_51%20PM.png',
     fire:'/ChatGPT%20Image%20Oct%2028%2C%202026%2C%2012_25_00%20PM.png',
