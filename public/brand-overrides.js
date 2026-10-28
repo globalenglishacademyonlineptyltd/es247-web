@@ -41,7 +41,9 @@
           '<img class="panic-vehicle-picture" src="'+ASSETS[x[1]]+'" alt="'+x[1]+' emergency assistance">'+
         '</button>';
       }).join('')+
-      '</div><p class="notice" id="panic-error" role="alert"></p></div></div>';
+      '</div><p class="notice" id="panic-error" role="alert"></p></div>'+
+      '<p class="es247-client-footer">Created by Emergency Services 24/7</p>'+
+      '</div>';
 
     if(typeof loadClientIncidents==='function')loadClientIncidents();
 
