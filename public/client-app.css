@@ -1,0 +1,21 @@
+/* ES 24/7 Client App — mobile-first professional login */
+.client-app-brand{display:none}
+@media (max-width:560px){
+  #login-view.login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px 16px;background:radial-gradient(circle at 50% 0%,rgba(239,59,59,.12),transparent 38%),#071226}
+  #login-view .hero{display:none}
+  #login-view .login-panel{width:100%;max-width:420px;padding:30px 22px 24px;border-radius:24px;background:rgba(16,29,54,.98);border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 70px rgba(0,0,0,.42)}
+  #login-view .client-app-brand{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:24px}
+  #login-view .client-app-brand .brand-mark{width:82px;height:82px;border-radius:22px;margin-bottom:16px;background:linear-gradient(135deg,#24d8c0,#62a8ff);font-size:24px;box-shadow:0 12px 30px rgba(36,216,192,.18)}
+  #login-view .client-app-brand h1{margin:0 0 7px;font-size:27px;line-height:1.15;letter-spacing:-.02em}
+  #login-view .client-app-brand p{margin:0;color:#aebbd0;font-size:15px;line-height:1.4}
+  #login-view .login-panel > .eyebrow,#login-view .login-panel > h2,#login-view .login-panel > .muted:first-of-type{display:none}
+  #login-view .login-panel label{margin:14px 0;color:#dfe8f4;font-size:13px}
+  #login-view .login-panel input{min-height:50px;padding:13px 14px;margin-top:8px;border-radius:13px;background:#08162a;border:1px solid #30435c}
+  #login-view .login-panel input:focus{border-color:#ef3b3b;box-shadow:0 0 0 3px rgba(239,59,59,.12)}
+  #login-view .password-field{margin-top:8px}
+  #login-view .password-toggle{min-width:68px;border-radius:13px;background:#192943;border-color:#30435c}
+  #login-view .login-panel .btn.primary{min-height:54px;margin-top:18px;border-radius:14px;background:#ef3b3b;color:#fff;box-shadow:0 10px 24px rgba(239,59,59,.22);font-size:17px}
+  #login-view .login-panel .btn.primary:hover{background:#f04b4b}
+  #login-view .login-panel .tiny{text-align:center;margin-top:20px}
+  #login-view .login-panel .tiny a{color:#ff7676;font-weight:700}
+}
