@@ -39,8 +39,8 @@ app.get('/app/download', async (_req,res) => {
   }
 });`;
 
-// The /app directory contains a legacy index.html. Register the download routes
-// before express.static so /app cannot be swallowed by that legacy file.
+// Keep the download page routes ahead of express.static so the legacy /app/index.html
+// can never intercept the professional download page or APK endpoint.
 source = source.replace(staticLine, appDownloadRoutes + '\n' + staticLine);
 
 fs.writeFileSync(serverPath, source);
