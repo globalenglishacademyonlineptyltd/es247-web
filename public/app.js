@@ -17,6 +17,7 @@ const ES247_LEGAL_DOCS={
  ['Platform availability','The app may be interrupted or unavailable because of maintenance, technical faults, hosting providers, telecommunications providers or other third-party services. Uninterrupted operation is not guaranteed.'],
  ['Liability limits','To the fullest extent permitted by law, ES 24/7 is not responsible for independent security-company acts or omissions, failures to monitor or respond, or failures caused by connectivity, device, location or third-party problems outside its reasonable control. Liability that cannot lawfully be excluded and non-waivable consumer rights are not excluded.'],
  ['Your responsibilities and privacy','Keep your details accurate, device working and charged, enable necessary permissions, protect login details and do not misuse the app or send knowingly false alerts. Personal and location information may be processed to provide and secure the service under the applicable privacy notice and South African law.'],
+ ['Sharing personal information during a panic','When you activate a panic alert, ES 24/7 may share information needed to respond with the registered security company assigned to your account. This can include your name and surname, registered address, your cellphone number, a relative’s cellphone number you provided, and available device location at the time of the incident. The company receives this information to identify and contact you or your nominated contact and coordinate its response. The security company is responsible for handling information it receives lawfully and securely. ES 24/7 remains responsible for its own legal duties; these terms do not remove non-waivable obligations.'],
  ['Governing law','These terms are governed by South African law, subject to mandatory legal protections.']
  ]},
  company_dashboard_terms:{title:'ES 24/7 Security Company Dashboard Terms and Conditions',sections:[
@@ -41,7 +42,7 @@ async function enforceLegalAcceptance(user){
  document.body.appendChild(box);
  const check=box.querySelector('#es247-legal-check'),button=box.querySelector('#es247-legal-accept');
  check.onchange=()=>{button.disabled=!check.checked;button.style.opacity=check.checked?'1':'.5';};
- button.onclick=async()=>{if(!check.checked)return;button.disabled=true;button.textContent='Saving…';try{await api('/api/legal/acceptance',{method:'POST',body:JSON.stringify({accepted:true,version:'1.0-draft'})});box.remove();show('#workspace-view');renderNav();goToPage('dashboard');if(user.role==='controller')startPanicMonitor();}catch(e){button.disabled=false;button.textContent='Accept and continue';box.querySelector('#es247-legal-error').textContent=e.message||'Unable to save acceptance.';}};
+ button.onclick=async()=>{if(!check.checked)return;button.disabled=true;button.textContent='Saving…';try{await api('/api/legal/acceptance',{method:'POST',body:JSON.stringify({accepted:true,version:status.version||'1.0-draft'})});box.remove();show('#workspace-view');renderNav();goToPage('dashboard');if(user.role==='controller')startPanicMonitor();}catch(e){button.disabled=false;button.textContent='Accept and continue';box.querySelector('#es247-legal-error').textContent=e.message||'Unable to save acceptance.';}};
  return false;
 }
 
