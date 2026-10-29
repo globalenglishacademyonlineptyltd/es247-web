@@ -231,6 +231,22 @@ app.post('/api/company/requests/:id/status',requireCompanyAccess,async(req,res,n
  }catch(e){next(e);}});
 
 app.use('/api',(_req,res)=>res.status(404).json({error:'API route not found.'}));
+app.get('/app/download',async(_req,res)=>{
+ try{
+  const upstream=await fetch('https://github.com/globalenglishacademyonlineptyltd/es247-andriod/releases/download/android-latest/app-release.apk',{redirect:'follow'});
+  if(!upstream.ok)return res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again shortly.');
+  const apk=Buffer.from(await upstream.arrayBuffer());
+  res.set('Content-Type','application/vnd.android.package-archive');
+  res.set('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');
+  res.set('Cache-Control','no-store');
+  res.set('Content-Length',String(apk.length));
+  res.send(apk);
+ }catch(error){
+  console.error('ES 24/7 APK download failed:',error.message);
+  res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again shortly.');
+ }
+});
+
 app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')));
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
