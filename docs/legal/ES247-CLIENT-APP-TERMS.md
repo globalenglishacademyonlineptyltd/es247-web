@@ -1,5 +1,5 @@
 # ES 24/7 Client App Terms and Conditions
-**Version:** 1.0-draft  
+**Version:** 1.1  
 **Effective date:** 29 October 2026
 
 ## 1. About ES 24/7
@@ -29,11 +29,14 @@ You must provide accurate registration details, keep your device in working orde
 ## 9. Personal information
 The app and its supporting systems may process personal information and location information to provide and secure the service. Information handling is governed by the applicable privacy notice and South African data-protection law. The roles and responsibilities of ES 24/7 and the selected security company depend on how information is processed.
 
-## 10. Changes, suspension and misuse
+## 10. Sharing personal information with your registered security company
+When you activate a panic alert, ES 24/7 may share the information needed to respond with the registered security company assigned to your account. This can include your name and surname, registered address, your cellphone number, a relative’s cellphone number that you provided, and the location information available from your device at the time of the incident. The company receives this information so it can identify you, contact you or your nominated contact, and coordinate its response. The security company is responsible for handling the information it receives lawfully and securely and for meeting its own obligations under applicable South African data-protection law. ES 24/7 remains responsible for its own legal duties; these terms do not remove or transfer any non-waivable obligations.
+
+## 11. Changes, suspension and misuse
 Access may be suspended or restricted where reasonably necessary for security, maintenance, suspected misuse, legal compliance or protection of users, subject to applicable law. Material changes to these terms will be communicated as required by law.
 
-## 11. Governing law and severability
+## 12. Governing law and severability
 These terms are governed by South African law, subject to applicable mandatory legal protections. If any provision is unenforceable, the remaining provisions continue to apply to the extent permitted by law.
 
-## 12. Acknowledgement
+## 13. Acknowledgement
 By selecting “I agree”, you confirm that you have had an opportunity to read these terms and acknowledge that successful alert transmission and emergency response cannot be guaranteed. This acknowledgement does not waive rights that cannot lawfully be waived.
