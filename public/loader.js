@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=signin-transition-fix1';
+    app.src='/app.js?v=signin-transition-fix3';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
@@ -54,6 +54,6 @@
   primary.onerror=loadFallback;
   document.head.appendChild(primary);
   var clientNavigation=document.createElement('script');
-  clientNavigation.src='/client-navigation-fixes.js?v=client-terms-force-menu-fix4';
+  clientNavigation.src='/client-navigation-fixes.js?v=client-terms-force-menu-fix5';
   document.body.appendChild(clientNavigation);
 })();
