@@ -168,16 +168,17 @@ CREATE TABLE IF NOT EXISTS legal_acceptance_migrations (
  migration_key TEXT PRIMARY KEY,
  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-DO $
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM legal_acceptance_migrations WHERE migration_key='backfill-existing-accounts-v1') THEN
-  INSERT INTO legal_acceptances(user_id,document_type,document_version)
-  SELECT id,'client_app_terms','1.1' FROM users WHERE role='client'
-  ON CONFLICT(user_id,document_type,document_version) DO NOTHING;
-  INSERT INTO legal_acceptances(user_id,document_type,document_version)
-  SELECT id,'company_dashboard_terms','1.0-draft' FROM users WHERE role='controller'
-  ON CONFLICT(user_id,document_type,document_version) DO NOTHING;
-  INSERT INTO legal_acceptance_migrations(migration_key) VALUES('backfill-existing-accounts-v1');
- END IF;
-END;
-$;
+INSERT INTO legal_acceptances(user_id,document_type,document_version)
+SELECT id,'client_app_terms','1.1' FROM users
+WHERE role='client'
+  AND NOT EXISTS (SELECT 1 FROM legal_acceptance_migrations WHERE migration_key='backfill-existing-accounts-v1')
+ON CONFLICT(user_id,document_type,document_version) DO NOTHING;
+INSERT INTO legal_acceptances(user_id,document_type,document_version)
+SELECT id,'company_dashboard_terms','1.0-draft' FROM users
+WHERE role='controller'
+  AND NOT EXISTS (SELECT 1 FROM legal_acceptance_migrations WHERE migration_key='backfill-existing-accounts-v1')
+ON CONFLICT(user_id,document_type,document_version) DO NOTHING;
+INSERT INTO legal_acceptance_migrations(migration_key)
+SELECT 'backfill-existing-accounts-v1'
+WHERE NOT EXISTS (SELECT 1 FROM legal_acceptance_migrations WHERE migration_key='backfill-existing-accounts-v1')
+ON CONFLICT(migration_key) DO NOTHING;
