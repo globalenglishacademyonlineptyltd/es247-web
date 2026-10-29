@@ -50,7 +50,6 @@ async function notifyCompanyOnPanic(companyId, incident, locationText) {
   })});
   if(!response.ok)console.error('Panic notification email provider returned a non-success response.');
  } catch(e) { console.error('Panic notification could not be sent:',e.message); }
- }
 }
 
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
