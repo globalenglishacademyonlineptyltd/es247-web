@@ -161,3 +161,23 @@ CREATE TABLE IF NOT EXISTS legal_acceptances (
  UNIQUE(user_id, document_type, document_version)
 );
 CREATE INDEX IF NOT EXISTS legal_acceptances_user_idx ON legal_acceptances(user_id, accepted_at DESC);
+
+-- One-time migration: preserve access for accounts that existed before acceptance
+-- tracking was introduced. Accounts created after this migration must accept.
+CREATE TABLE IF NOT EXISTS legal_acceptance_migrations (
+ migration_key TEXT PRIMARY KEY,
+ applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+DO $
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM legal_acceptance_migrations WHERE migration_key='backfill-existing-accounts-v1') THEN
+  INSERT INTO legal_acceptances(user_id,document_type,document_version)
+  SELECT id,'client_app_terms','1.1' FROM users WHERE role='client'
+  ON CONFLICT(user_id,document_type,document_version) DO NOTHING;
+  INSERT INTO legal_acceptances(user_id,document_type,document_version)
+  SELECT id,'company_dashboard_terms','1.0-draft' FROM users WHERE role='controller'
+  ON CONFLICT(user_id,document_type,document_version) DO NOTHING;
+  INSERT INTO legal_acceptance_migrations(migration_key) VALUES('backfill-existing-accounts-v1');
+ END IF;
+END;
+$;
