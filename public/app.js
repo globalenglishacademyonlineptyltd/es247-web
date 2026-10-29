@@ -230,7 +230,7 @@ document.querySelectorAll('.password-toggle').forEach(b=>b.onclick=()=>{const in
 const onClientApp=location.pathname==='/client-app'||location.pathname.startsWith('/client-app/');
 let clientTermsRequired=onClientApp,clientTermsChecking=false;
 const termsGate=$('#client-terms-gate'),termsCheck=$('#client-terms-check'),loginButton=$('#login-form .btn.primary'),emailInput=$('#login-form input[name="email"]');
-function syncTermsGate(){if(!termsGate||!onClientApp)return;const hasEmail=!!emailInput.value.trim();termsGate.classList.toggle('visible',hasEmail&&clientTermsRequired);loginButton.disabled=clientTermsChecking||!hasEmail||(clientTermsRequired&&!termsCheck.checked);loginButton.style.opacity=loginButton.disabled?'.55':'1';}
+function syncTermsGate(){if(!termsGate||!onClientApp)return;const hasEmail=!!emailInput.value.trim();termsGate.classList.toggle('visible',hasEmail&&clientTermsRequired&&!clientTermsChecking);loginButton.disabled=clientTermsChecking||!hasEmail||(clientTermsRequired&&!termsCheck.checked);loginButton.style.opacity=loginButton.disabled?'.55':'1';}
 if(termsGate&&onClientApp){
  let preflightTimer,preflightRequest=0,lastCheckedEmail='';
  termsCheck.addEventListener('change',syncTermsGate);
