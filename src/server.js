@@ -86,6 +86,12 @@ app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
  }catch(e){next(e);}
 });
 app.post('/api/auth/logout',(_req,res)=>{clearSession(res);res.json({ok:true});});
+app.get('/api/legal/acceptance',authenticate,async(req,res,next)=>{
+ try{let type=null;if(req.user.role==='client')type='client_app_terms';else if(req.user.role==='controller')type='company_dashboard_terms';else return res.json({required:false,accepted:true});const version='1.0-draft';const q=await pool.query('SELECT accepted_at FROM legal_acceptances WHERE user_id=$1 AND document_type=$2 AND document_version=$3',[req.user.id,type,version]);res.json({required:true,accepted:q.rowCount>0,documentType:type,version,acceptedAt:q.rows[0]?.accepted_at||null});}catch(e){next(e);}
+});
+app.post('/api/legal/acceptance',authenticate,async(req,res,next)=>{
+ try{let type=null;if(req.user.role==='client')type='client_app_terms';else if(req.user.role==='controller')type='company_dashboard_terms';else return res.status(403).json({error:'This account does not require these terms.'});const p=z.object({accepted:z.literal(true),version:z.literal('1.0-draft')}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please read and accept the current Terms and Conditions.'});const q=await pool.query('INSERT INTO legal_acceptances(user_id,document_type,document_version) VALUES($1,$2,$3) ON CONFLICT(user_id,document_type,document_version) DO UPDATE SET accepted_at=legal_acceptances.accepted_at RETURNING accepted_at',[req.user.id,type,p.data.version]);res.json({ok:true,documentType:type,version:p.data.version,acceptedAt:q.rows[0].accepted_at});}catch(e){next(e);}
+});
 app.get('/api/me',authenticate,(req,res)=>res.json({user:req.user}));
 app.post('/api/auth/change-password',authenticate,async(req,res,next)=>{
  try{
