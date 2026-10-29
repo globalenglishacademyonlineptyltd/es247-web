@@ -72,3 +72,6 @@
   .es247-client-home .client-panic-grid{gap:10px!important}
   .es247-client-home .es247-client-footer{margin-top:20px!important;font-size:12px!important}
 }
+
+/* Fix client sign-in: the mobile login layout must not override the hidden state after authentication. */
+#login-view.login-shell.hidden{display:none!important;visibility:hidden!important;pointer-events:none!important}
