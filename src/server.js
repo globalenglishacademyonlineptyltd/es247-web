@@ -56,12 +56,19 @@ app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardH
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
 app.post('/api/auth/login',limiter,async(req,res,next)=>{
  try{
-  const p=z.object({email,password:z.string().min(1).max(128)}).safeParse(req.body);
+  const p=z.object({email,password:z.string().min(1).max(128),accept_terms:z.boolean().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
   const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];
   if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
-  issueSession(res,u);res.json({user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
+  if(u.role==='client'){
+   const accepted=await pool.query("SELECT 1 FROM legal_acceptances WHERE user_id=$1 AND document_type='client_app_terms' AND document_version='1.2'",[u.id]);
+   if(!accepted.rowCount){
+    if(p.data.accept_terms!==true)return res.status(403).json({error:'Please read and accept the current Terms and Conditions before signing in.',code:'CLIENT_TERMS_REQUIRED'});
+    await pool.query("INSERT INTO legal_acceptances(user_id,document_type,document_version) VALUES($1,'client_app_terms','1.2') ON CONFLICT(user_id,document_type,document_version) DO NOTHING",[u.id]);
+   }
+  }
+  issueSession(res,u);res.set('Cache-Control','no-store');res.json({user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
 app.post('/api/mobile/auth/login',limiter,async(req,res,next)=>{
