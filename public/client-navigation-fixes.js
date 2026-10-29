@@ -32,9 +32,35 @@
       });
     }
   }
+  function ensureTermsButton() {
+    var items = menu();
+    if (!items) return;
+    var existing = document.getElementById('client-menu-terms');
+    if (existing) {
+      existing.textContent = "T's & C's";
+      existing.style.display = 'block';
+      existing.style.visibility = 'visible';
+      existing.style.opacity = '1';
+      existing.setAttribute('data-client-page', 'terms');
+      return;
+    }
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'client-menu-terms';
+    button.setAttribute('data-client-page', 'terms');
+    button.textContent = "T's & C's";
+    button.style.display = 'block';
+    button.style.visibility = 'visible';
+    button.style.opacity = '1';
+    var logout = document.getElementById('client-menu-logout');
+    if (logout && logout.parentNode === items) items.insertBefore(button, logout);
+    else items.appendChild(button);
+  }
+
   function ensureLogo() {
     var hamburger = document.getElementById('client-hamburger');
     if (!hamburger) return;
+    ensureTermsButton();
     var toggle = document.getElementById('client-menu-toggle');
     var logo = document.getElementById('client-brand-home');
 
@@ -114,6 +140,7 @@
 
   var observer = new MutationObserver(function () {
     if (isClientWorkspace()) {
+      ensureTermsButton();
       ensureLogo();
       bind();
     }
@@ -122,6 +149,7 @@
 
   var timer = setInterval(function () {
     if (isClientWorkspace()) {
+      ensureTermsButton();
       ensureLogo();
       bind();
       clearInterval(timer);
