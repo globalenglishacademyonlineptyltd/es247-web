@@ -182,3 +182,6 @@ INSERT INTO legal_acceptance_migrations(migration_key)
 SELECT 'backfill-existing-accounts-v1'
 WHERE NOT EXISTS (SELECT 1 FROM legal_acceptance_migrations WHERE migration_key='backfill-existing-accounts-v1')
 ON CONFLICT(migration_key) DO NOTHING;
+
+-- Company confirmation is required before Master Admin 2 can permanently delete an archived client.
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS permanent_delete_requested_at TIMESTAMPTZ;
