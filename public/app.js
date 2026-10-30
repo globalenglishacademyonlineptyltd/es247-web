@@ -173,7 +173,9 @@ function panicPage_OLD(){ $('#content').innerHTML='<div class="card narrow"><p c
 async function loadClientIncidents(){try{const d=await api('/api/client/incidents');d.incidents=Array.isArray(d?.incidents)?d.incidents:[];$('#client-incidents').innerHTML='<div class="card" style="margin-top:18px"><h2>My Incident History</h2>'+(d.incidents.length?d.incidents.map(i=>'<p>'+pill(i.status)+' <strong>'+esc(i.incident_type)+'</strong><br><small class="muted">'+date(i.panic_at)+' · '+esc(i.location_text||'Location unavailable')+'</small></p>').join(''):'<p class="empty">No incidents yet.</p>')+'</div>';}catch{}}
 function initCompanyCoverageMap(company){
  const el=$('#company-coverage-map');if(!el||!window.L)return;
- if(state.map){state.map.remove();state.map=null;}
+ // Keep the live company coverage map mounted. Background refreshes or duplicate init calls must not tear down its tiles.
+ if(state.map&&state.map.getContainer&&state.map.getContainer()===el)return;
+ if(state.map){try{state.map.remove();}catch{}state.map=null;}
  el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
  const standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'});
