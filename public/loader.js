@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=client-workspace-visibility-fix1';
+    app.src='/app.js?v=client-splash-removal-fix2';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
