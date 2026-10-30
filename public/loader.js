@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=signin-transition-fix4';
+    app.src='/app.js?v=signin-transition-fix5';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
