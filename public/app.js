@@ -327,13 +327,19 @@ function restoreClientWorkspace(user){
  $('#avatar').textContent=String(user.display_name||user.email||'A').slice(0,1).toUpperCase();
  $('#role-label').textContent=String(user.role||'client').replace('_',' ');
  if(user.must_change_password){show('#password-view');return;}
- // Explicitly leave the boot/splash screen and show the authenticated client shell.
- show('#workspace-view');
- // Force the authenticated view above the boot layer in Android WebView.
+ // Remove the boot screen node entirely after the server confirms the saved session.
+ // This avoids Android WebView retaining a stale splash layer despite CSS class changes.
  const boot=$('#boot-view'), login=$('#login-view');
- if(boot){boot.classList.add('hidden');boot.style.setProperty('display','none','important');}
+ if(boot)boot.remove();
  if(login){login.classList.add('hidden');login.style.setProperty('display','none','important');}
- if(workspace){workspace.classList.remove('hidden');workspace.style.setProperty('display','block','important');workspace.style.setProperty('visibility','visible','important');}
+ show('#workspace-view');
+ if(workspace){
+  workspace.classList.remove('hidden');
+  workspace.style.setProperty('display','block','important');
+  workspace.style.setProperty('visibility','visible','important');
+  workspace.style.setProperty('opacity','1','important');
+  workspace.style.setProperty('pointer-events','auto','important');
+ }
  state.page='dashboard';
  $('#page-title').textContent='Panic Home';
  try{renderNav();}catch(err){console.error('Client navigation setup failed:',err);}
