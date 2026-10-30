@@ -329,6 +329,11 @@ function restoreClientWorkspace(user){
  if(user.must_change_password){show('#password-view');return;}
  // Explicitly leave the boot/splash screen and show the authenticated client shell.
  show('#workspace-view');
+ // Force the authenticated view above the boot layer in Android WebView.
+ const boot=$('#boot-view'), login=$('#login-view');
+ if(boot){boot.classList.add('hidden');boot.style.setProperty('display','none','important');}
+ if(login){login.classList.add('hidden');login.style.setProperty('display','none','important');}
+ if(workspace){workspace.classList.remove('hidden');workspace.style.setProperty('display','block','important');workspace.style.setProperty('visibility','visible','important');}
  state.page='dashboard';
  $('#page-title').textContent='Panic Home';
  try{renderNav();}catch(err){console.error('Client navigation setup failed:',err);}
