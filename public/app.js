@@ -317,4 +317,31 @@ $('#forgot-form').onsubmit=async e=>{e.preventDefault();try{const d=Object.fromE
 $('#reset-form').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));if(d.new_password!==d.confirm_password){$('#reset-error').textContent='Passwords do not match.';return;}const token=new URLSearchParams(location.search).get('reset');if(!token){$('#reset-error').textContent='Reset token is missing. Request a new link.';return;}try{const r=await api('/api/auth/reset-password',{method:'POST',body:JSON.stringify({token,new_password:d.new_password})});$('#reset-error').textContent=r.message;history.replaceState(null,'',location.pathname);setTimeout(()=>show('#login-view'),1200);}catch(x){$('#reset-error').textContent=x.message;}};
 $('#logout').onclick=()=>logoutUser();
 setInterval(async()=>{if(state.user?.role!=='controller'||!['dashboard','incidents'].includes(state.page)||$('#incident-dialog').open)return;try{if(state.page==='dashboard'){if($('#content').contains(document.activeElement))return;const [d,i]=await Promise.all([api('/api/dashboard'),api('/api/incidents')]);state.data=d;state.incidents=(Array.isArray(i.incidents)?i.incidents:[]).filter(x=>x.status!=='Incident Resolved');$('#content').innerHTML=controllerDashboard(d,state.incidents);initCompanyCoverageMap(d.company);bindDynamic();}else{const i=await api('/api/incidents');state.incidents=(Array.isArray(i.incidents)?i.incidents:[]).filter(x=>x.status!=='Incident Resolved');updateIncidentMap(state.incidents);}}catch{}},5000);
-(async()=>{if(new URLSearchParams(location.search).has('reset')){show('#reset-view');return;}show('#boot-view');const bootMessage=$('#boot-view p');let lastError=null;for(let attempt=0;attempt<2;attempt++){try{const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);let d;try{d=await api('/api/me',{signal:controller.signal,cache:'no-store'});}finally{clearTimeout(timer);}if(d?.user){await enter(d.user);return;}show('#login-view');return;}catch(e){lastError=e;if(e?.status===401){show('#login-view');return;}if(attempt===0)await new Promise(resolve=>setTimeout(resolve,800));}}show('#login-view');const error=$('#login-error');if(error)error.textContent='Could not restore your saved session. Please check your internet connection and try again.';if(bootMessage)bootMessage.textContent='Session check timed out. Please check your connection and try again.';})();
+function restoreClientWorkspace(user){
+ state.user=user;
+ const workspace=$('#workspace-view');
+ if(workspace)workspace.classList.add('client-workspace');
+ $('#logout')?.classList.add('hidden');
+ $('#user-name').textContent=user.display_name||'User';
+ $('#user-email').textContent=user.email||'';
+ $('#avatar').textContent=String(user.display_name||user.email||'A').slice(0,1).toUpperCase();
+ $('#role-label').textContent=String(user.role||'client').replace('_',' ');
+ if(user.must_change_password){show('#password-view');return;}
+ // Explicitly leave the boot/splash screen and show the authenticated client shell.
+ show('#workspace-view');
+ state.page='dashboard';
+ $('#page-title').textContent='Panic Home';
+ try{renderNav();}catch(err){console.error('Client navigation setup failed:',err);}
+ try{
+  if(typeof window.panicPage==='function')window.panicPage();
+  else panicPage();
+ }catch(err){
+  console.error('Client home render failed:',err);
+  const host=$('#content');
+  if(host)host.innerHTML='<div class="card"><h2>Welcome to ES 24/7</h2><p class="notice">Your account is signed in, but the home screen could not finish rendering. Please refresh the app.</p><button type="button" class="btn primary" onclick="location.reload()">Refresh app</button></div>';
+ }
+}
+(async()=>{if(new URLSearchParams(location.search).has('reset')){show('#reset-view');return;}show('#boot-view');const bootMessage=$('#boot-view p');let lastError=null;for(let attempt=0;attempt<2;attempt++){try{const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);let d;try{d=await api('/api/me',{signal:controller.signal,cache:'no-store'});}finally{clearTimeout(timer);}if(d?.user){
+ if(d.user.role==='client'){restoreClientWorkspace(d.user);return;}
+ await enter(d.user);return;
+}show('#login-view');return;}catch(e){lastError=e;if(e?.status===401){show('#login-view');return;}if(attempt===0)await new Promise(resolve=>setTimeout(resolve,800));}}show('#login-view');const error=$('#login-error');if(error)error.textContent='Could not restore your saved session. Please check your internet connection and try again.';if(bootMessage)bootMessage.textContent='Session check timed out. Please check your connection and try again.';})();
