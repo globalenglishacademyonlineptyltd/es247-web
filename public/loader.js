@@ -24,7 +24,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=master-dashboard-landing-fix1';
+    fix.src='/dashboard-fixes.js?v=master-dashboard-landing-fix3';
     fix.onload=function(){installSafeBindings();loadBrandOverrides();};
     document.body.appendChild(fix);
   }
@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=master-dashboard-map-zoom-fix1';
+    app.src='/app.js?v=master-dashboard-map-zoom-fix2';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
