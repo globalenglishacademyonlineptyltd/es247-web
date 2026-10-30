@@ -302,26 +302,12 @@ if(termsGate&&onClientApp){
  $('#client-terms-open').onclick=()=>openLegalDocument('client_app_terms');
 }
 function openLegalDocument(type){const doc=ES247_LEGAL_DOCS[type];if(!doc)return;document.getElementById('es247-legal-readonly')?.remove();const box=document.createElement('div');box.id='es247-legal-readonly';box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(5,12,24,.9);display:flex;align-items:center;justify-content:center;padding:14px';box.innerHTML='<section role="dialog" aria-modal="true" style="background:white;color:#172033;width:min(820px,100%);max-height:94vh;border-radius:16px;padding:22px;display:flex;flex-direction:column"><h2>'+esc(doc.title)+'</h2><div style="overflow:auto;border:1px solid #dbe2ea;border-radius:10px;padding:14px;max-height:70vh;line-height:1.5">'+doc.sections.map(x=>'<h3 style="font-size:15px;margin:12px 0 4px">'+esc(x[0])+'</h3><p>'+esc(x[1])+'</p>').join('')+'</div><button id="es247-legal-readonly-close" style="margin-top:12px;border:0;border-radius:8px;padding:12px;background:#174ea6;color:white;font-weight:bold">Close</button></section>';document.body.appendChild(box);box.querySelector('#es247-legal-readonly-close').onclick=()=>box.remove();}
-$('#login-form').onsubmit=async e=>{e.preventDefault();const error=$('#login-error'),button=$('#login-form .btn.primary');error.textContent='';if(onClientApp&&clientTermsRequired&&!termsCheck.checked){error.textContent='Please accept the Terms and Conditions before signing in.';syncTermsGate();return;}if(onClientApp&&clientTermsChecking){error.textContent='Please wait while acceptance is verified.';return;}const originalText=button?.textContent;try{if(button){button.disabled=true;button.textContent='Signing in…';}const d=Object.fromEntries(new FormData(e.currentTarget));if(onClientApp)d.accept_terms=termsCheck.checked;const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify(d)});if(!r?.user)throw new Error('The server signed in the request but did not return a user session. Please try again.');if(onClientApp&&r.user.role==='client'){clientTermsRequired=false;termsCheck.checked=false;syncTermsGate();}if(button){button.disabled=true;button.textContent='Opening your account…';}
-if(onClientApp&&r.user.role==='client'){
- state.user=r.user;
- $('#workspace-view').classList.add('client-workspace');
- $('#logout').classList.add('hidden');
- $('#user-name').textContent=r.user.display_name||'User';
- $('#user-email').textContent=r.user.email||'';
- $('#avatar').textContent=(r.user.display_name||r.user.email||'A').slice(0,1).toUpperCase();
- $('#role-label').textContent=String(r.user.role||'client').replace('_',' ');
- if(r.user.must_change_password){show('#password-view');return;}
- show('#workspace-view');
- try{
-  renderNav();
-  state.page='dashboard';
-  $('#page-title').textContent='Panic Home';
-  panicPage();
- }catch(openError){
-  const host=$('#content');
-  if(host)host.innerHTML='<div class="card"><h2>Your sign-in was successful</h2><p class="notice">The client home screen could not finish rendering: '+esc(openError?.message||'Please refresh the app.')+'</p><button type="button" class="btn primary" onclick="location.reload()">Refresh app</button></div>';
- }
+$('#login-form').onsubmit=async e=>{e.preventDefault();const error=$('#login-error'),button=$('#login-form .btn.primary');error.textContent='';if(onClientApp&&clientTermsRequired&&!termsCheck.checked){error.textContent='Please accept the Terms and Conditions before signing in.';syncTermsGate();return;}if(onClientApp&&clientTermsChecking){error.textContent='Please wait while acceptance is verified.';return;}const originalText=button?.textContent;try{if(button){button.disabled=true;button.textContent='Signing in…';}const d=Object.fromEntries(new FormData(e.currentTarget));if(onClientApp)d.accept_terms=termsCheck.checked;const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify(d)});if(!r?.user)throw new Error('The server signed in the request but did not return a user session. Please try again.');if(onClientApp&&r.user.role==='client'){
+ // Authentication and session creation have succeeded. Re-enter the client app
+ // through its normal boot/session-restore path instead of attempting an in-place
+ // DOM transition inside the login form.
+ button.textContent='Opening your account…';
+ window.location.replace('/client-app?client-entry=2');
  return;
 }
 const transition=enter(r.user);const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('Sign-in was accepted, but the app did not finish opening. Please try again; the session is preserved.')),12000));Promise.race([transition,timeout]).catch(x=>{error.textContent=x?.message||'Sign-in could not be completed. Please try again.';}).finally(()=>{if(button){button.textContent=originalText||'Sign in';if(onClientApp)syncTermsGate();else button.disabled=false;}});return;}catch(x){error.textContent=x?.message||'Sign-in could not be completed. Please try again.';}finally{if(button&&button.textContent==='Signing in…'){button.textContent=originalText||'Sign in';if(onClientApp)syncTermsGate();else button.disabled=false;}}};
