@@ -55,27 +55,39 @@ async function enter(u){
  $('#avatar').textContent=(u.display_name||u.email||'A').slice(0,1).toUpperCase();
  $('#role-label').textContent=u.role.replace('_',' ');
  if(u.must_change_password){show('#password-view');return;}
- if(!(await enforceLegalAcceptance(u)))return;
 
- // Complete the visual sign-in transition before starting dashboard data loading.
- // A slow dashboard must never leave a valid user stranded on the login screen.
- const firstPage=u.role==='master_admin_2'?'company-dashboards':'dashboard';
+ // Authentication has already succeeded. Open the workspace shell immediately.
  show('#workspace-view');
  renderNav();
- $('#content').innerHTML='<div class="card"><h2>Opening your workspace…</h2><p class="muted">Your sign-in is complete. Loading your dashboard.</p></div>';
- if(u.role==='controller')startPanicMonitor();
 
- window.setTimeout(async()=>{
-  try{
-   await window.goToPage(firstPage);
-  }catch(e){
+ // Client acceptance is checked and enforced by /api/auth/login before a session
+ // is issued. Do not make a second acceptance request that can strand the client
+ // on the sign-in screen.
+ if(u.role==='client'){
+  state.page='dashboard';
+  $('#page-title').textContent='Panic Home';
+  panicPage();
+  return;
+ }
+
+ const firstPage=u.role==='master_admin_2'?'company-dashboards':'dashboard';
+ $('#content').innerHTML='<div class="card"><h2>Opening your workspace…</h2><p class="muted">Your sign-in is complete. Loading your dashboard.</p></div>';
+
+ if(u.role==='controller'){
+  const accepted=await enforceLegalAcceptance(u);
+  if(!accepted)return;
+  startPanicMonitor();
+ }
+
+ // Dashboard loading is deliberately separate from successful authentication.
+ window.setTimeout(function(){
+  Promise.resolve(window.goToPage(firstPage)).catch(function(e){
    const host=$('#content');
-   if(host){
-    host.innerHTML='<div class="card"><h2>Workspace opened</h2><p class="notice">'+esc(e?.message||'The dashboard could not finish loading.')+'</p><button class="btn primary" id="retry-workspace-open">Retry dashboard</button></div>';
-    const retry=$('#retry-workspace-open');
-    if(retry)retry.onclick=()=>window.goToPage(firstPage);
-   }
-  }
+   if(!host)return;
+   host.innerHTML='<div class="card"><h2>Workspace opened</h2><p class="notice">'+esc(e?.message||'The dashboard could not finish loading.')+'</p><button class="btn primary" id="retry-workspace-open">Retry dashboard</button></div>';
+   const retry=$('#retry-workspace-open');
+   if(retry)retry.onclick=function(){window.goToPage(firstPage);};
+  });
  },0);
 }
 function stopAlarm(){state.alertSounding=false;if(state.alarmTimer){clearInterval(state.alarmTimer);state.alarmTimer=null;}if(state.alarmContext){try{state.alarmContext.suspend();}catch{}}}
