@@ -121,7 +121,7 @@ function initMasterMap(companies=[]){
   if(!window.L){el.innerHTML='<div style="padding:24px;color:#d9e5f2">Interactive map library did not load. Please refresh the dashboard.</div>';return;}
   if(state.map){state.map.remove();state.map=null;}
   el.style.height='min(68vh, 720px)';el.style.minHeight='440px';el.style.width='100%';
-  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],5);state.map=map;
+  const map=L.map(el,{zoomControl:true,preferCanvas:true}).setView([-29,24],6);state.map=map;
   const standard=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri and its contributors'});
   const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri and its contributors'});
   let active='standard',errors=0;standard.on('tileerror',()=>{if(active==='standard'&&++errors>=4)mapNotice(el,'The standard street map could not load.');});standard.addTo(map);
@@ -131,7 +131,7 @@ function initMasterMap(companies=[]){
   $('#master-standard')?.addEventListener('click',()=>set('standard'));$('#master-satellite')?.addEventListener('click',()=>set('satellite'));update();
   const valid=(companies||[]).filter(c=>c.latitude!=null&&c.longitude!=null&&Number.isFinite(Number(c.latitude))&&Number.isFinite(Number(c.longitude)));
   const points=valid.map(c=>{const ll=[Number(c.latitude),Number(c.longitude)];L.marker(ll).addTo(map).bindPopup('<strong>'+esc(c.registered_name)+'</strong><br>'+esc(c.covering_areas||''));return ll;});
-  addCoverageAreas(map,companies,points,1);
+  addCoverageAreas(map,companies,points,0);
   setTimeout(()=>map.invalidateSize(true),100);setTimeout(()=>map.invalidateSize(true),450);
 }
 function adminDashboard(d){d=d||{};d.counts=d.counts||{companies:0,clients:0};d.companies=Array.isArray(d.companies)?d.companies:[];return '<div class="stats"><div class="stat"><small>ACTIVE COMPANIES</small><strong>'+d.counts.companies+'</strong></div><div class="stat"><small>REGISTERED CLIENTS</small><strong>'+d.counts.clients+'</strong></div><div class="stat"><small>ACCESS ROLE</small><strong style="font-size:20px">Master Admin</strong></div></div><div class="section-head"><h2>Company Directory</h2><button class="btn primary" data-goto="add-company">+ Add Company</button></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>CIPC / PSIRA</th><th>Contact</th><th>Clients</th><th>Actions</th></tr></thead><tbody>'+ (d.companies.length?d.companies.map(c=>'<tr><td><strong>'+esc(c.registered_name)+'</strong><br><small class="muted">'+esc(c.covering_areas)+'</small></td><td>'+esc(c.cipc_number)+'<br><small class="muted">'+esc(c.psira_number)+'</small></td><td>'+esc(c.contact_number)+'<br>'+esc(c.contact_email)+'</td><td><strong>'+c.total_clients+'</strong></td><td><button class="btn outline small" data-controller="'+c.id+'">Add controller</button> <button class="btn danger small" data-archive="'+c.id+'">Archive</button></td></tr>').join(''):'<tr><td colspan="5" class="empty">No companies yet. Add the first company to begin.</td></tr>')+'</tbody></table></div><p class="tiny">The master administrator sees company records and total client counts only, not live panic details or private incident feeds.</p>';}
