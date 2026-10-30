@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=client-session-reentry-fix3';
+    app.src='/app.js?v=client-session-restore-fix4';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
