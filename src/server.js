@@ -24,7 +24,7 @@ app.use(cookieParser());
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 const email = z.string().trim().email().max(254).transform(v=>v.toLowerCase());
-const password = z.string().min(12).max(128);
+const password = z.string().min(6).max(128);
 const companyInput = z.object({
  registered_name:z.string().trim().min(2).max(180), cipc_number:z.string().trim().min(2).max(80),
  psira_number:z.string().trim().min(2).max(80), bbbee_level:z.string().trim().max(80).optional().nullable(),
@@ -85,7 +85,7 @@ app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
  try{
   if(req.user.role!=='client')return res.status(403).json({error:'Mobile password changes are for client accounts only.'});
   const p=z.object({current_password:z.string().min(1).max(128),new_password:password}).safeParse(req.body);
-  if(!p.success)return res.status(400).json({error:'New password must contain at least 12 characters.'});
+  if(!p.success)return res.status(400).json({error:'New password must contain at least 6 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
   await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
@@ -103,7 +103,7 @@ app.get('/api/me',authenticate,(req,res)=>res.json({user:req.user}));
 app.post('/api/auth/change-password',authenticate,async(req,res,next)=>{
  try{
   const p=z.object({current_password:z.string().min(1).max(128),new_password:password}).safeParse(req.body);
-  if(!p.success)return res.status(400).json({error:'New password must contain at least 12 characters.'});
+  if(!p.success)return res.status(400).json({error:'New password must contain at least 6 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
   await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
