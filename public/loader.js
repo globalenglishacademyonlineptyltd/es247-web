@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=master-dashboard-map-zoom-fix2';
+    app.src='/app.js?v=company-map-stable-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
