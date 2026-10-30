@@ -72,3 +72,10 @@
   .es247-client-home .client-panic-grid{gap:10px!important}
   .es247-client-home .es247-client-footer{margin-top:20px!important;font-size:12px!important}
 }
+
+
+/* Small mobile alignment adjustment: lower the client header and the complete emergency home panel. */
+@media(max-width:560px){
+  .client-workspace .client-hamburger{top:32px!important}
+  .client-workspace .page-content{padding-top:96px!important}
+}
