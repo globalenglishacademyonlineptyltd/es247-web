@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=archived-clients-no-selector-iteration-fix3';
+    app.src='/app.js?v=password-minimum-six-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
