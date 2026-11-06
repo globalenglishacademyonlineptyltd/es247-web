@@ -227,6 +227,33 @@ app.post('/api/master/clients/:id/reset-password',requireMaster2,async(req,res,n
  await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
  res.json({ok:true,must_change_password:true});
  }catch(e){next(e);}});
+// API aliases used by the current Master Admin 2 screens.
+app.post('/api/master/companies',requireMaster,async(req,res,next)=>{
+ const p=companyInput.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete all required company fields with valid values.'});
+ const d=p.data,db=await pool.connect();
+ try{
+  await db.query('BEGIN');
+  const c=await db.query('INSERT INTO companies(registered_name,cipc_number,psira_number,bbbee_level,contact_number,contact_email,covering_areas,tax_number,vat_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,registered_name',[d.registered_name,d.cipc_number,d.psira_number,d.bbbee_level||null,d.contact_number,d.contact_email,d.covering_areas,d.tax_number,d.vat_number||null]);
+  await db.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'controller',$3,$4,true)",[d.contact_email,await hashPassword(d.temporary_password),c.rows[0].id,d.registered_name+' Controller']);
+  await db.query('COMMIT');res.status(201).json({company:c.rows[0]});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'That company, CIPC/PSIRA number or contact email is already in use.'});next(e);}finally{db.release();}
+});
+app.get('/api/master/active-companies',requireMaster2,async(_req,res,next)=>{try{const r=await pool.query('SELECT id,registered_name FROM companies WHERE archived_at IS NULL ORDER BY registered_name');res.json({companies:r.rows});}catch(e){next(e);}});
+app.post('/api/master/clients',requireMaster2,async(req,res,next)=>{
+ const p=z.object({company_id:z.coerce.number().int().positive(),full_name:z.string().trim().min(2).max(160),email:email,phone:z.string().trim().max(40).optional().nullable(),address:z.string().trim().max(1000).optional().nullable(),temporary_password:password,latitude:z.coerce.number().min(-90).max(90).optional(),longitude:z.coerce.number().min(-180).max(180).optional(),app_download_url:z.string().url().max(1000).optional().or(z.literal(''))}).safeParse(req.body);
+ if(!p.success)return res.status(400).json({error:'Please complete the required client fields. Temporary passwords must contain 6–128 characters.'});
+ const d=p.data,db=await pool.connect();
+ try{
+  await db.query('BEGIN');const c=await db.query('SELECT id FROM companies WHERE id=$1 AND archived_at IS NULL',[d.company_id]);if(!c.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Active company not found.'});}
+  const u=await db.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'client',$3,$4,true) RETURNING id,email,display_name",[d.email,await hashPassword(d.temporary_password),d.company_id,d.full_name]);
+  const cl=await db.query('INSERT INTO clients(company_id,user_id,full_name,phone,email,address,latitude,longitude,app_download_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,full_name,email',[d.company_id,u.rows[0].id,d.full_name,d.phone||null,d.email,d.address||null,d.latitude??null,d.longitude??null,d.app_download_url||null]);
+  await db.query('COMMIT');res.status(201).json({client:cl.rows[0]});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'That client email is already in use.'});next(e);}finally{db.release();}
+});
+app.get('/api/company/clients',requireCompanyAccess,async(req,res,next)=>{try{
+ const r=await pool.query(`SELECT cl.id,cl.company_id,cl.full_name,cl.phone,cl.alternate_phone,cl.email,cl.address,cl.latitude,cl.longitude,cl.vehicles,cl.family_group_id,cl.archived_at,u.active,u.email AS login_email FROM clients cl JOIN users u ON u.id=cl.user_id WHERE cl.company_id=$1 ORDER BY cl.full_name`,[companyScope(req)]);
+ res.json({clients:r.rows});
+ }catch(e){next(e);}});
 app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.post('/api/company/restore/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.delete('/api/company/:id',requireMaster,async(req,res,next)=>{
