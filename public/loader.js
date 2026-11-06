@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=six-character-password-policy-v1';
+    app.src='/app.js?v=archived-clients-null-forEach-fix1';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
