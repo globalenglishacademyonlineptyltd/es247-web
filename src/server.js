@@ -201,7 +201,24 @@ app.post('/api/company/create',requireMaster,async(req,res,next)=>{
 });
 app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.post('/api/company/restore/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
-app.delete('/api/company/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('DELETE FROM companies WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
+app.delete('/api/company/:id',requireMaster,async(req,res,next)=>{
+ const db=await pool.connect();
+ try{
+  if(!/^\d+$/.test(String(req.params.id)))return res.status(400).json({error:'Invalid company ID.'});
+  await db.query('BEGIN');
+  const company=await db.query('SELECT id,registered_name FROM companies WHERE id=$1 AND archived_at IS NOT NULL FOR UPDATE',[req.params.id]);
+  if(!company.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Archived company not found.'});}
+  const id=company.rows[0].id;
+  // Delete dependent records in one transaction. Child audit/reset/acceptance rows cascade.
+  await db.query('DELETE FROM client_requests WHERE company_id=$1',[id]);
+  await db.query('DELETE FROM incidents WHERE company_id=$1',[id]);
+  await db.query('DELETE FROM clients WHERE company_id=$1',[id]);
+  await db.query('DELETE FROM users WHERE company_id=$1',[id]);
+  await db.query('DELETE FROM companies WHERE id=$1',[id]);
+  await db.query('COMMIT');
+  res.json({ok:true,deleted:true,company_name:company.rows[0].registered_name});
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
+});
 app.post('/api/company/client/create',requireCompanyAccess,async(req,res,next)=>{
  const db=await pool.connect();try{
   const p=z.object({full_name:z.string().trim().min(2).max(160),phone:z.string().trim().max(40).optional().nullable(),alternate_phone:z.string().trim().max(40).optional().nullable(),email:z.string().trim().email().max(254),address:z.string().trim().max(1000).optional().nullable(),vehicles:z.array(z.object({make:z.string().trim().max(80).optional().default(''),model:z.string().trim().max(80).optional().default(''),registration:z.string().trim().max(40).optional().default('')})).max(10).optional().default([]),temporary_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete the required client fields with valid values.'});
