@@ -205,7 +205,7 @@ app.put('/api/master/companies/:id',requireMaster2,async(req,res,next)=>{try{
  const p=companyInput.omit({temporary_password:true}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete all required company fields with valid values.'});
  const d=p.data;const r=await pool.query('UPDATE companies SET registered_name=$1,cipc_number=$2,psira_number=$3,bbbee_level=$4,contact_number=$5,contact_email=$6,covering_areas=$7,tax_number=$8,vat_number=$9 WHERE id=$10 AND archived_at IS NULL RETURNING id,registered_name',[d.registered_name,d.cipc_number,d.psira_number,d.bbbee_level||null,d.contact_number,d.contact_email,d.covering_areas,d.tax_number,d.vat_number||null,req.params.id]);
  if(!r.rowCount)return res.status(404).json({error:'Active company not found.'});
- await pool.query("UPDATE users SET email=$1,display_name=$2 WHERE company_id=$3 AND role='controller' AND email=(SELECT contact_email FROM companies WHERE id=$3)",[d.contact_email,d.registered_name+' Controller',req.params.id]);
+ await pool.query("UPDATE users SET email=$1,display_name=$2 WHERE company_id=$3 AND role='controller'",[d.contact_email,d.registered_name+' Controller',req.params.id]);
  res.json({company:r.rows[0]});
  }catch(e){if(e.code==='23505')return res.status(409).json({error:'That CIPC number, PSIRA number or contact email is already in use.'});next(e);}});
 app.post('/api/master/companies/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
