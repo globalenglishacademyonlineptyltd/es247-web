@@ -199,6 +199,29 @@ app.post('/api/company/create',requireMaster,async(req,res,next)=>{
   await db.query('COMMIT');res.status(201).json({company:c.rows[0]});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({error:'That company or contact email is already in use.'});next(e);}finally{db.release();}
 });
+// Master Admin 2-only company editing and temporary-password recovery.
+const requireMaster2=(req,res,next)=>req.user?.role==='master_admin_2'?next():res.status(403).json({error:'Only Master Admin 2 can perform this action.'});
+app.put('/api/master/companies/:id',requireMaster2,async(req,res,next)=>{try{
+ const p=companyInput.omit({temporary_password:true}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Please complete all required company fields with valid values.'});
+ const d=p.data;const r=await pool.query('UPDATE companies SET registered_name=$1,cipc_number=$2,psira_number=$3,bbbee_level=$4,contact_number=$5,contact_email=$6,covering_areas=$7,tax_number=$8,vat_number=$9 WHERE id=$10 AND archived_at IS NULL RETURNING id,registered_name',[d.registered_name,d.cipc_number,d.psira_number,d.bbbee_level||null,d.contact_number,d.contact_email,d.covering_areas,d.tax_number,d.vat_number||null,req.params.id]);
+ if(!r.rowCount)return res.status(404).json({error:'Active company not found.'});
+ await pool.query("UPDATE users SET email=$1,display_name=$2 WHERE company_id=$3 AND role='controller' AND email=(SELECT contact_email FROM companies WHERE id=$3)",[d.contact_email,d.registered_name+' Controller',req.params.id]);
+ res.json({company:r.rows[0]});
+ }catch(e){if(e.code==='23505')return res.status(409).json({error:'That CIPC number, PSIRA number or contact email is already in use.'});next(e);}});
+app.post('/api/master/companies/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
+ const p=z.object({new_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Temporary password must contain 6–128 characters.'});
+ const r=await pool.query("UPDATE users SET password_hash=$1,must_change_password=true WHERE company_id=$2 AND role='controller' AND active=true AND email=(SELECT contact_email FROM companies WHERE id=$2 AND archived_at IS NULL) RETURNING id",[await hashPassword(p.data.new_password),req.params.id]);
+ if(!r.rowCount)return res.status(404).json({error:'Active company controller account not found.'});
+ await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
+ res.json({ok:true,must_change_password:true});
+ }catch(e){next(e);}});
+app.post('/api/master/clients/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
+ const p=z.object({new_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Temporary password must contain 6–128 characters.'});
+ const r=await pool.query("UPDATE users u SET password_hash=$1,must_change_password=true FROM clients c WHERE c.id=$2 AND c.user_id=u.id AND u.role='client' AND u.active=true RETURNING u.id",[await hashPassword(p.data.new_password),req.params.id]);
+ if(!r.rowCount)return res.status(404).json({error:'Active client account not found.'});
+ await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
+ res.json({ok:true,must_change_password:true});
+ }catch(e){next(e);}});
 app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.post('/api/company/restore/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.delete('/api/company/:id',requireMaster,async(req,res,next)=>{
