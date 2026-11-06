@@ -21,7 +21,23 @@ app.use(helmet({ contentSecurityPolicy: { directives: {
 }}}));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
-app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
+// Prevent browsers and intermediary caches from reusing stale SPA HTML or JavaScript.
+// This is important for the app shell because loader.js dynamically selects app.js.
+app.use((req,res,next)=>{
+ if(req.path==='/'||/\\.html?$|\\.js$/i.test(req.path)){
+  res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma','no-cache');
+  res.setHeader('Expires','0');
+ }
+ next();
+});
+app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0,setHeaders(res,filePath){
+ if(/\\.(?:html?|js)$/i.test(filePath)){
+  res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma','no-cache');
+  res.setHeader('Expires','0');
+ }
+}}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 const email = z.string().trim().email().max(254).transform(v=>v.toLowerCase());
 const password = z.string().min(6).max(128);
