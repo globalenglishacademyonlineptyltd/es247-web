@@ -24,7 +24,7 @@
   }
   function loadDashboardFixes(){
     var fix=document.createElement('script');
-    fix.src='/dashboard-fixes.js?v=master-dashboard-landing-fix3';
+    fix.src='/dashboard-fixes.js?v=archived-clients-emergency-page1';
     fix.onload=function(){installSafeBindings();loadBrandOverrides();var companyFix=document.createElement('script');companyFix.src='/company-management-fix.js?v=master2-company-archive-fix1';document.body.appendChild(companyFix);};
     document.body.appendChild(fix);
   }
