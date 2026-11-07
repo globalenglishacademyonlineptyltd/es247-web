@@ -21,7 +21,8 @@ This is an initial working foundation, not a declared production-ready emergency
 
 ## Required Railway variables
 
-- `DATABASE_URL`: attach a Railway PostgreSQL service.
+- `DATABASE_URL`: attach a Railway PostgreSQL service; production connections verify the server certificate.
+- `DATABASE_SSL_CA`: required PEM-encoded public root CA certificate for this project's Railway `postgres-ssl` database. Obtain `certs/root.crt` from the exact Postgres service referenced by `es247-web` → Variables → `DATABASE_URL`. Copy only `root.crt`; never copy `root.key` or `server.key`.
 - `JWT_SECRET`: unique random value of at least 32 characters.
 - `INITIAL_ADMIN_EMAIL`: first master administrator email.
 - `INITIAL_ADMIN_PASSWORD`: strong password of at least 12 characters. The first admin is created only when the database has no users. Remove this variable after successful bootstrap.

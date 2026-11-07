@@ -7,7 +7,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, migrate } from './db.js';
-import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword } from './auth.js';
+import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -23,6 +23,24 @@ app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
+// Login protection is layered: a broad per-IP ceiling plus a tighter per-IP/account
+// ceiling. Successful logins are removed from the counters; failed attempts remain.
+// The account identifier is hashed before it is used as an in-memory limiter key.
+const loginIpLimiter = rateLimit({
+ windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false,
+ skipSuccessfulRequests:true,
+ message:{error:'Too many sign-in attempts from this network. Please wait 15 minutes and try again.'}
+});
+const loginAccountIpLimiter = rateLimit({
+ windowMs:15*60*1000,limit:5,standardHeaders:'draft-7',legacyHeaders:false,
+ skipSuccessfulRequests:true,
+ keyGenerator:req=>{
+  const account=String(req.body?.email||'').trim().toLowerCase();
+  return createHash('sha256').update(String(req.ip||'unknown')+'|'+account).digest('hex');
+ },
+ message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
+});
+const loginProtection = [loginIpLimiter,loginAccountIpLimiter];
 const email = z.string().trim().email().max(254).transform(v=>v.toLowerCase());
 const password = z.string().min(12).max(128);
 const companyInput = z.object({
@@ -54,7 +72,7 @@ async function notifyCompanyOnPanic(companyId, incident, locationText) {
 
 app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
-app.post('/api/auth/login',limiter,async(req,res,next)=>{
+app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128),accept_terms:z.boolean().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
@@ -71,14 +89,14 @@ app.post('/api/auth/login',limiter,async(req,res,next)=>{
   issueSession(res,u);res.set('Cache-Control','no-store');res.json({user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
-app.post('/api/mobile/auth/login',limiter,async(req,res,next)=>{
+app.post('/api/mobile/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128)}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
   const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role!=='client')return res.status(403).json({error:'Mobile sign-in is for client accounts only.'});
-  res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:2592000,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
+  res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
 app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
