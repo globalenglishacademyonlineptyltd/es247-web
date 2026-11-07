@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 const { Pool } = pg;
 const here = path.dirname(fileURLToPath(import.meta.url));
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Attach PostgreSQL before starting ES 24/7.');
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_SSL_CA) {
+  throw new Error('DATABASE_SSL_CA is required in production to verify the Railway PostgreSQL certificate.');
+}
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production'
@@ -12,7 +15,7 @@ export const pool = new Pool({
         // Always validate the PostgreSQL server certificate in production.
         // Set DATABASE_SSL_CA only when Railway supplies a private CA certificate.
         rejectUnauthorized: true,
-        ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA } : {})
+        ca: process.env.DATABASE_SSL_CA
       }
     : false,
   max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000
