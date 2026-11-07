@@ -23,6 +23,24 @@ app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
+// Login protection is layered: a broad per-IP ceiling plus a tighter per-IP/account
+// ceiling. Successful logins are removed from the counters; failed attempts remain.
+// The account identifier is hashed before it is used as an in-memory limiter key.
+const loginIpLimiter = rateLimit({
+ windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false,
+ skipSuccessfulRequests:true,
+ message:{error:'Too many sign-in attempts from this network. Please wait 15 minutes and try again.'}
+});
+const loginAccountIpLimiter = rateLimit({
+ windowMs:15*60*1000,limit:5,standardHeaders:'draft-7',legacyHeaders:false,
+ skipSuccessfulRequests:true,
+ keyGenerator:req=>{
+  const account=String(req.body?.email||'').trim().toLowerCase();
+  return createHash('sha256').update(String(req.ip||'unknown')+'|'+account).digest('hex');
+ },
+ message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
+});
+const loginProtection = [loginIpLimiter,loginAccountIpLimiter];
 const email = z.string().trim().email().max(254).transform(v=>v.toLowerCase());
 const password = z.string().min(12).max(128);
 const companyInput = z.object({
@@ -54,7 +72,7 @@ async function notifyCompanyOnPanic(companyId, incident, locationText) {
 
 app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
-app.post('/api/auth/login',limiter,async(req,res,next)=>{
+app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128),accept_terms:z.boolean().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
@@ -71,7 +89,7 @@ app.post('/api/auth/login',limiter,async(req,res,next)=>{
   issueSession(res,u);res.set('Cache-Control','no-store');res.json({user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
-app.post('/api/mobile/auth/login',limiter,async(req,res,next)=>{
+app.post('/api/mobile/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128)}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
