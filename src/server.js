@@ -7,7 +7,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, migrate } from './db.js';
-import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword } from './auth.js';
+import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -78,7 +78,7 @@ app.post('/api/mobile/auth/login',limiter,async(req,res,next)=>{
   const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role!=='client')return res.status(403).json({error:'Mobile sign-in is for client accounts only.'});
-  res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:2592000,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
+  res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
 app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
