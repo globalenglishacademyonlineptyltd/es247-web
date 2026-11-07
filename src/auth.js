@@ -27,7 +27,7 @@ export async function authenticate(req, res, next) {
     const header = req.get('authorization') || '';
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : req.cookies?.[COOKIE];
     if (!token) return res.status(401).json({ error: 'Please sign in.' });
-    const claims = jwt.verify(token, secret(), { issuer: 'es247', audience: 'es247-web' });
+    const claims = jwt.verify(token, secret(), { issuer: 'es247', audience: 'es247-web', maxAge: SESSION_TTL_SECONDS });
     const result = await pool.query('SELECT id,email,role,company_id,display_name,must_change_password,active FROM users WHERE id=$1', [claims.sub]);
     const user = result.rows[0];
     if (!user || !user.active) { clearSession(res); return res.status(user?.role === 'client' ? 403 : 401).json({ error: user?.role === 'client' ? 'Your account is paused. Please contact your security company.' : 'This account is inactive.' }); }
