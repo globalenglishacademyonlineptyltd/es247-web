@@ -1,7 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
@@ -36,7 +36,8 @@ const loginAccountIpLimiter = rateLimit({
  skipSuccessfulRequests:true,
  keyGenerator:req=>{
   const account=String(req.body?.email||'').trim().toLowerCase();
-  return createHash('sha256').update(String(req.ip||'unknown')+'|'+account).digest('hex');
+  const ip = req.ip ? ipKeyGenerator(req.ip) : 'unknown';
+  return createHash('sha256').update(ip+'|'+account).digest('hex');
  },
  message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
 });
