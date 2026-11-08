@@ -1,9 +1,9 @@
 name: Validate ES 24/7
 on:
   push:
-    branches: [main]
+    branches: [main, safe-client-terms-menu]
   pull_request:
-    branches: [main]
+    branches: [main, safe-client-terms-menu]
 jobs:
   syntax-and-install:
     runs-on: ubuntu-latest
