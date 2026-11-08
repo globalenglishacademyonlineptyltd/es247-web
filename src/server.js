@@ -1,7 +1,8 @@
 import express from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
+import { isIP } from 'node:net';
 import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
@@ -10,6 +11,16 @@ import { pool, migrate } from './db.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+function rateLimitIpKey(value) {
+ const ip=String(value||'unknown').split('%')[0].toLowerCase();
+ if(isIP(ip)!==6 || ip.includes('.')) return ip;
+ const halves=ip.split('::');
+ const left=halves[0] ? halves[0].split(':') : [];
+ const right=halves[1] ? halves[1].split(':') : [];
+ const missing=Math.max(0,8-left.length-right.length);
+ const groups=[...left,...Array(missing).fill('0'),...right];
+ return groups.slice(0,4).map(group=>group.padStart(4,'0')).join(':')+'/64';
+}
 const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
@@ -50,7 +61,7 @@ const loginAccountIpLimiter = rateLimit({
  skipSuccessfulRequests:true,
  keyGenerator:req=>{
   const account=String(req.body?.email||'').trim().toLowerCase();
-  const ip=req.ip ? ipKeyGenerator(req.ip) : 'unknown';
+  const ip=rateLimitIpKey(req.ip);
   return createHash('sha256').update(ip+'|'+account).digest('hex');
  },
  message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
