@@ -403,7 +403,7 @@ async function start(){
  await migrate();
  validateAuthConfig();
  const databaseTls=await verifyDatabaseTls();
- if(databaseTls)console.log('PostgreSQL TLS verified: '+databaseTls.version+' / '+databaseTls.cipher);
+ if(databaseTls)console.log('PostgreSQL TLS verified for '+databaseTls.databaseHost+'/'+databaseTls.databaseName+': '+databaseTls.version+' / '+databaseTls.cipher);
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
    const target=await pool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)',[e]);
