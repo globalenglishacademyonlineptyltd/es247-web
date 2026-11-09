@@ -186,3 +186,13 @@ ON CONFLICT(migration_key) DO NOTHING;
 
 -- Company confirmation is required before Master Admin 2 can permanently delete an archived client.
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS permanent_delete_requested_at TIMESTAMPTZ;
+
+-- Shared persistent counters for authentication and public endpoint rate limits.
+CREATE TABLE IF NOT EXISTS rate_limit_counters (
+ limiter_name TEXT NOT NULL,
+ key_hash CHAR(64) NOT NULL,
+ total_hits INTEGER NOT NULL CHECK (total_hits >= 0),
+ reset_time TIMESTAMPTZ NOT NULL,
+ PRIMARY KEY (limiter_name, key_hash)
+);
+CREATE INDEX IF NOT EXISTS rate_limit_counters_reset_time_idx ON rate_limit_counters(reset_time);
