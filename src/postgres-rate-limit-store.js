@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
-import { pool } from './db.js';
+
+const defaultQuery = async (...args) => {
+  const { pool } = await import('./db.js');
+  return pool.query(...args);
+};
 
 /**
  * PostgreSQL-backed express-rate-limit store.
@@ -7,7 +11,7 @@ import { pool } from './db.js';
  * Client identifiers are hashed before persistence so raw IPs/emails are not stored.
  */
 export default class PostgresRateLimitStore {
-  constructor(prefix, query = pool.query.bind(pool)) {
+  constructor(prefix, query = defaultQuery) {
     if (!/^[a-z0-9_-]{1,64}$/i.test(prefix)) {
       throw new Error('A short, stable rate-limit store prefix is required.');
     }
