@@ -14,7 +14,8 @@ import { authenticate, requireRole, requirePasswordChanged, issueSession, create
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 function rateLimitIpKey(value) {
- const ip=String(value||'unknown').split('%')[0].toLowerCase();
+ let ip=String(value||'unknown').split('%')[0].toLowerCase();
+ if(ip.startsWith('::ffff:')&&isIP(ip)===6)ip=ip.slice(7);
  if(isIP(ip)!==6 || ip.includes('.')) return ip;
  const halves=ip.split('::');
  const left=halves[0] ? halves[0].split(':') : [];
@@ -47,7 +48,8 @@ app.use((req,res,next)=>{
   if(!cloudflareHeaderCheckLogged){console.log('Cloudflare edge IP and client IP headers verified.');cloudflareHeaderCheckLogged=true;}
   return next();
  }
- req.clientIp=req.ip;
+ const railwayClientIp=req.get('x-real-ip')||'';
+ req.clientIp=isIP(railwayClientIp)?railwayClientIp:req.ip;
  if(cloudflareProxyRequired&&req.path!=='/health')return res.status(403).json({error:'Access denied.'});
  next();
 });
