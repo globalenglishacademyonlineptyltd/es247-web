@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool, migrate, verifyDatabaseTls, isProduction } from './db.js';
+import { pool, migrationPool, migrate, verifyDatabaseTls, isProduction } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
 import { isCloudflareIp } from './cloudflare-proxy.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
@@ -406,26 +406,26 @@ async function start(){
  if(databaseTls)console.log('PostgreSQL TLS verified for '+databaseTls.databaseHost+'/'+databaseTls.databaseName+': '+databaseTls.version+' / '+databaseTls.cipher);
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const target=await pool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)',[e]);
+   const target=await migrationPool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)',[e]);
    if(target.rowCount){
-    await pool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>'master_admin_2' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2",[e,target.rows[0].id]);
+    await migrationPool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>'master_admin_2' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2",[e,target.rows[0].id]);
     console.log('Second master administrator account role verified and enforced; existing password preserved.');
    } else {
-    const current=await pool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
+    const current=await migrationPool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
     if(current.rowCount){
-     await pool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>\'master_admin_2\' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2',[e,current.rows[0].id]);
+     await migrationPool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>\'master_admin_2\' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2',[e,current.rows[0].id]);
      console.log('Second master administrator email updated and role enforced; existing password preserved.');
     } else {
      const oneTimePassword=randomBytes(48).toString('base64url');
-     await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
+     await migrationPool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
      console.log('Second master administrator provisioned; password change required.');
     }
    }
   }
-  const count=await pool.query('SELECT COUNT(*)::int AS n FROM users');
+  const count=await migrationPool.query('SELECT COUNT(*)::int AS n FROM users');
  if(count.rows[0].n===0&&process.env.INITIAL_ADMIN_EMAIL&&process.env.INITIAL_ADMIN_PASSWORD){
   const e=email.parse(process.env.INITIAL_ADMIN_EMAIL),p=password.parse(process.env.INITIAL_ADMIN_PASSWORD);
-  await pool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'master_admin',NULL,'Master Administrator',false)",[e,await hashPassword(p)]);
+  await migrationPool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'master_admin',NULL,'Master Administrator',false)",[e,await hashPassword(p)]);
   console.log('Initial master administrator created from environment configuration.');
  }
  const port=Number(process.env.PORT||8080);app.listen(port,'0.0.0.0',()=>console.log('ES 24/7 listening on '+port));
