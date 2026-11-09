@@ -3,12 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
-  "scripts": { "start": "node src/start.js", "check": "node --check src/server.js && node --check src/start.js && node --check src/auth.js && node --check src/db.js && node --check src/postgres-rate-limit-store.js && node --check src/cloudflare-proxy.js && node --check public/app.js && node --test" },
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "start": "node src/start.js",
+    "check": "node --check src/server.js && node --check src/start.js && node --check src/auth.js && node --check src/db.js && node --check src/postgres-rate-limit-store.js && node --check src/cloudflare-proxy.js && node --check public/app.js && node --test && npm audit --audit-level=high"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
-    "express": "^4.21.2",
+    "express": "4.22.3",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
