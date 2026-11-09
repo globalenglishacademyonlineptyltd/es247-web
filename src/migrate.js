@@ -37,6 +37,32 @@ async function run() {
     console.log('Restricted runtime database credential rotated successfully.');
   }
 
+  const runtimeRole = await migrationPool.query("SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls FROM pg_roles WHERE rolname='es247_runtime'");
+  if (!runtimeRole.rowCount) throw new Error('Restricted runtime database role es247_runtime is missing.');
+  const attrs = runtimeRole.rows[0];
+  if (!attrs.rolcanlogin || attrs.rolsuper || attrs.rolcreatedb || attrs.rolcreaterole || attrs.rolreplication || attrs.rolbypassrls) {
+    throw new Error('Restricted runtime database role has an unexpected elevated role attribute.');
+  }
+  const access = await migrationPool.query(
+    "SELECT has_schema_privilege('es247_runtime','public','USAGE') AS schema_usage, " +
+    "has_schema_privilege('es247_runtime','public','CREATE') AS schema_create, " +
+    "has_database_privilege('es247_runtime','railway','CONNECT') AS db_connect, " +
+    "has_database_privilege('es247_runtime','railway','CREATE') AS db_create, " +
+    "(SELECT COUNT(*)::int FROM pg_auth_members WHERE member=(SELECT oid FROM pg_roles WHERE rolname='es247_runtime')) AS memberships, " +
+    "(SELECT COUNT(*)::int FROM pg_tables t WHERE schemaname='public' AND ( " +
+    "NOT has_table_privilege('es247_runtime',format('%I.%I',schemaname,tablename),'SELECT') OR " +
+    "NOT has_table_privilege('es247_runtime',format('%I.%I',schemaname,tablename),'INSERT') OR " +
+    "NOT has_table_privilege('es247_runtime',format('%I.%I',schemaname,tablename),'UPDATE') OR " +
+    "NOT has_table_privilege('es247_runtime',format('%I.%I',schemaname,tablename),'DELETE'))) AS tables_missing_crud, " +
+    "(SELECT COUNT(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='S' AND ( " +
+    "NOT has_sequence_privilege('es247_runtime',c.oid,'USAGE') OR NOT has_sequence_privilege('es247_runtime',c.oid,'SELECT') OR NOT has_sequence_privilege('es247_runtime',c.oid,'UPDATE'))) AS sequences_missing"
+  );
+  const a = access.rows[0];
+  if (!a.schema_usage || a.schema_create || !a.db_connect || a.db_create || a.memberships !== 0 || a.tables_missing_crud !== 0 || a.sequences_missing !== 0) {
+    throw new Error('Restricted runtime database permissions did not match the expected least-privilege policy.');
+  }
+  console.log('Restricted runtime DB privileges verified: login enabled, no elevated role flags or role memberships, no schema/database CREATE, CRUD-only table grants, and sequence grants verified.');
+
   if (process.env.MASTER_ADMIN_2_EMAIL) {
     const e = email(process.env.MASTER_ADMIN_2_EMAIL);
     const target = await migrationPool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)', [e]);
