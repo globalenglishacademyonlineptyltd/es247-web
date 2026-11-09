@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('master_admin','master_admin_2','controller','client'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS clients (
  id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
  user_id BIGINT UNIQUE REFERENCES users(id) ON DELETE RESTRICT, full_name TEXT NOT NULL,
@@ -185,3 +186,13 @@ ON CONFLICT(migration_key) DO NOTHING;
 
 -- Company confirmation is required before Master Admin 2 can permanently delete an archived client.
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS permanent_delete_requested_at TIMESTAMPTZ;
+
+-- Shared persistent counters for authentication and public endpoint rate limits.
+CREATE TABLE IF NOT EXISTS rate_limit_counters (
+ limiter_name TEXT NOT NULL,
+ key_hash CHAR(64) NOT NULL,
+ total_hits INTEGER NOT NULL CHECK (total_hits >= 0),
+ reset_time TIMESTAMPTZ NOT NULL,
+ PRIMARY KEY (limiter_name, key_hash)
+);
+CREATE INDEX IF NOT EXISTS rate_limit_counters_reset_time_idx ON rate_limit_counters(reset_time);

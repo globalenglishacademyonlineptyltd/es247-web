@@ -7,12 +7,15 @@ import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool, migrate } from './db.js';
-import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
+import { pool, migrate, verifyDatabaseTls, isProduction } from './db.js';
+import PostgresRateLimitStore from './postgres-rate-limit-store.js';
+import { isCloudflareIp } from './cloudflare-proxy.js';
+import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 function rateLimitIpKey(value) {
- const ip=String(value||'unknown').split('%')[0].toLowerCase();
+ let ip=String(value||'unknown').split('%')[0].toLowerCase();
+ if(ip.startsWith('::ffff:')&&isIP(ip)===6)ip=ip.slice(7);
  if(isIP(ip)!==6 || ip.includes('.')) return ip;
  const halves=ip.split('::');
  const left=halves[0] ? halves[0].split(':') : [];
@@ -22,7 +25,7 @@ function rateLimitIpKey(value) {
  return groups.slice(0,4).map(group=>group.padStart(4,'0')).join(':')+'/64';
 }
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', false);
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: { directives: {
   defaultSrc:["'self'"], scriptSrc:["'self'","https://unpkg.com","https://cdnjs.cloudflare.com"],
@@ -32,6 +35,24 @@ app.use(helmet({ contentSecurityPolicy: { directives: {
 }}}));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
+const cloudflareProxyRequired=process.env.REQUIRE_CLOUDFLARE_PROXY==='true';
+let cloudflareHeaderCheckLogged=false;
+app.use((req,res,next)=>{
+ if(!isProduction){req.clientIp=req.ip;return next();}
+ const edgeIp=req.get('x-real-ip')||'';
+ const clientIp=req.get('cf-connecting-ip')||'';
+ const trustedEdge=isCloudflareIp(edgeIp);
+ const validClientIp=isIP(clientIp)!==0;
+ if(trustedEdge&&validClientIp){
+  req.clientIp=clientIp;
+  if(!cloudflareHeaderCheckLogged){console.log('Cloudflare edge IP and client IP headers verified.');cloudflareHeaderCheckLogged=true;}
+  return next();
+ }
+ const railwayClientIp=req.get('x-real-ip')||'';
+ req.clientIp=isIP(railwayClientIp)?railwayClientIp:req.ip;
+ if(cloudflareProxyRequired&&req.path!=='/health')return res.status(403).json({error:'Access denied.'});
+ next();
+});
 // Prevent browsers and intermediary caches from reusing stale SPA HTML or JavaScript.
 // This is important for the app shell because loader.js dynamically selects app.js.
 app.use((req,res,next)=>{
@@ -49,19 +70,22 @@ app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge
   res.setHeader('Expires','0');
  }
 }}));
-const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
+const clientIpKey = req => rateLimitIpKey(req.clientIp || req.ip);
+const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,keyGenerator:clientIpKey,store:new PostgresRateLimitStore('password-reset'),passOnStoreError:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 // Layered failed-login protection for both browser and mobile sign-in.
 const loginIpLimiter = rateLimit({
  windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false,
+ keyGenerator:clientIpKey,store:new PostgresRateLimitStore('login-ip'),passOnStoreError:false,
  skipSuccessfulRequests:true,
  message:{error:'Too many sign-in attempts from this network. Please wait 15 minutes and try again.'}
 });
 const loginAccountIpLimiter = rateLimit({
  windowMs:15*60*1000,limit:5,standardHeaders:'draft-7',legacyHeaders:false,
+ store:new PostgresRateLimitStore('login-account-ip'),passOnStoreError:false,
  skipSuccessfulRequests:true,
  keyGenerator:req=>{
   const account=String(req.body?.email||'').trim().toLowerCase();
-  const ip=rateLimitIpKey(req.ip);
+  const ip=clientIpKey(req);
   return createHash('sha256').update(ip+'|'+account).digest('hex');
  },
  message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
@@ -96,13 +120,13 @@ async function notifyCompanyOnPanic(companyId, incident, locationText) {
  } catch(e) { console.error('Panic notification could not be sent:',e.message); }
 }
 
-app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
+app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false,keyGenerator:clientIpKey,store:new PostgresRateLimitStore('legal-preflight'),passOnStoreError:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
 app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128),accept_terms:z.boolean().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
-  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
+  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active,session_version FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];
   if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role==='client'){
@@ -119,7 +143,7 @@ app.post('/api/mobile/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128)}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
-  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
+  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active,session_version FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role!=='client')return res.status(403).json({error:'Mobile sign-in is for client accounts only.'});
   res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
@@ -132,11 +156,20 @@ app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'New password must contain at least 6 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
-  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
-  res.json({ok:true,message:'Password updated successfully.'});
+  const updated=await pool.query('UPDATE users SET password_hash=$1,must_change_password=false,session_version=session_version+1 WHERE id=$2 RETURNING session_version',[await hashPassword(p.data.new_password),req.user.id]);
+  const accessToken=createAccessToken({...req.user,session_version:updated.rows[0].session_version});
+  res.json({ok:true,access_token:accessToken,token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,message:'Password updated successfully.'});
  }catch(e){next(e);}
 });
-app.post('/api/auth/logout',(_req,res)=>{clearSession(res);res.json({ok:true});});
+async function logoutAndRevokeSessions(req,res,next){
+ try{
+  await pool.query('UPDATE users SET session_version=session_version+1 WHERE id=$1',[req.user.id]);
+  clearSession(res);
+  res.json({ok:true});
+ }catch(e){next(e);}
+}
+app.post('/api/auth/logout',authenticate,logoutAndRevokeSessions);
+app.post('/api/mobile/auth/logout',authenticate,logoutAndRevokeSessions);
 app.get('/api/legal/acceptance',authenticate,async(req,res,next)=>{
  try{let type=null;if(req.user.role==='client')type='client_app_terms';else if(req.user.role==='controller')type='company_dashboard_terms';else return res.json({required:false,accepted:true});const version=type==='client_app_terms'?'1.2':'1.0-draft';const q=await pool.query('SELECT accepted_at FROM legal_acceptances WHERE user_id=$1 AND document_type=$2 AND document_version=$3',[req.user.id,type,version]);res.json({required:true,accepted:q.rowCount>0,documentType:type,version,acceptedAt:q.rows[0]?.accepted_at||null});}catch(e){next(e);}
 });
@@ -150,7 +183,8 @@ app.post('/api/auth/change-password',authenticate,async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'New password must contain at least 6 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
-  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
+  const updated=await pool.query('UPDATE users SET password_hash=$1,must_change_password=false,session_version=session_version+1 WHERE id=$2 RETURNING session_version',[await hashPassword(p.data.new_password),req.user.id]);
+  issueSession(res,{...req.user,session_version:updated.rows[0].session_version});
   res.json({ok:true});
  }catch(e){next(e);}
 });
@@ -178,7 +212,7 @@ app.post('/api/auth/reset-password',limiter,async(req,res,next)=>{
   const tokenHash=createHash('sha256').update(p.data.token).digest('hex');await db.query('BEGIN');
   const t=await db.query('SELECT id,user_id FROM password_reset_tokens WHERE token_hash=$1 AND used_at IS NULL AND expires_at>NOW() FOR UPDATE',[tokenHash]);
   if(!t.rowCount){await db.query('ROLLBACK');return res.status(400).json({error:'This reset link is invalid or expired. Request a new one.'});}
-  await db.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),t.rows[0].user_id]);
+  await db.query('UPDATE users SET password_hash=$1,must_change_password=false,session_version=session_version+1 WHERE id=$2',[await hashPassword(p.data.new_password),t.rows[0].user_id]);
   await db.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL',[t.rows[0].user_id]);
   await db.query('COMMIT');res.json({ok:true,message:'Password reset successfully. You can now sign in.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
@@ -243,14 +277,14 @@ app.put('/api/master/companies/:id',requireMaster2,async(req,res,next)=>{
 });
 app.post('/api/master/companies/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
  const p=z.object({new_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Temporary password must contain 6–128 characters.'});
- const r=await pool.query("UPDATE users SET password_hash=$1,must_change_password=true WHERE company_id=$2 AND role='controller' AND active=true AND email=(SELECT contact_email FROM companies WHERE id=$2 AND archived_at IS NULL) RETURNING id",[await hashPassword(p.data.new_password),req.params.id]);
+ const r=await pool.query("UPDATE users SET password_hash=$1,must_change_password=true,session_version=session_version+1 WHERE company_id=$2 AND role='controller' AND active=true AND email=(SELECT contact_email FROM companies WHERE id=$2 AND archived_at IS NULL) RETURNING id",[await hashPassword(p.data.new_password),req.params.id]);
  if(!r.rowCount)return res.status(404).json({error:'Active company controller account not found.'});
  await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
  res.json({ok:true,must_change_password:true});
  }catch(e){next(e);}});
 app.post('/api/master/clients/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
  const p=z.object({new_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Temporary password must contain 6–128 characters.'});
- const r=await pool.query("UPDATE users u SET password_hash=$1,must_change_password=true FROM clients c WHERE c.id=$2 AND c.user_id=u.id AND u.role='client' AND u.active=true RETURNING u.id",[await hashPassword(p.data.new_password),req.params.id]);
+ const r=await pool.query("UPDATE users u SET password_hash=$1,must_change_password=true,session_version=session_version+1 FROM clients c WHERE c.id=$2 AND c.user_id=u.id AND u.role='client' AND u.active=true RETURNING u.id",[await hashPassword(p.data.new_password),req.params.id]);
  if(!r.rowCount)return res.status(404).json({error:'Active client account not found.'});
  await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
  res.json({ok:true,must_change_password:true});
@@ -282,7 +316,7 @@ app.get('/api/company/clients',requireCompanyAccess,async(req,res,next)=>{try{
  const r=await pool.query(`SELECT cl.id,cl.company_id,cl.full_name,cl.phone,cl.alternate_phone,cl.email,cl.address,cl.latitude,cl.longitude,cl.vehicles,cl.family_group_id,cl.archived_at,u.active,u.email AS login_email FROM clients cl JOIN users u ON u.id=cl.user_id WHERE cl.company_id=$1 ORDER BY cl.full_name`,[companyScope(req)]);
  res.json({clients:r.rows});
  }catch(e){next(e);}});
-app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});res.json({ok:true});}catch(e){next(e);}});
+app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});await pool.query('UPDATE users SET session_version=session_version+1 WHERE company_id=$1',[req.params.id]);res.json({ok:true});}catch(e){next(e);}});
 app.post('/api/company/restore/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.delete('/api/company/:id',requireMaster,async(req,res,next)=>{
  const db=await pool.connect();
@@ -367,16 +401,19 @@ app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')))
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
  await migrate();
+ validateAuthConfig();
+ const databaseTls=await verifyDatabaseTls();
+ if(databaseTls)console.log('PostgreSQL TLS verified for '+databaseTls.databaseHost+'/'+databaseTls.databaseName+': '+databaseTls.version+' / '+databaseTls.cipher);
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const target=await pool.query('SELECT id,role FROM users WHERE LOWER(email)=LOWER($1)',[e]);
+   const target=await pool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)',[e]);
    if(target.rowCount){
-    await pool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true WHERE id=$2",[e,target.rows[0].id]);
+    await pool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>'master_admin_2' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2",[e,target.rows[0].id]);
     console.log('Second master administrator account role verified and enforced; existing password preserved.');
    } else {
     const current=await pool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
     if(current.rowCount){
-     await pool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true WHERE id=$2',[e,current.rows[0].id]);
+     await pool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>\'master_admin_2\' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2',[e,current.rows[0].id]);
      console.log('Second master administrator email updated and role enforced; existing password preserved.');
     } else {
      const oneTimePassword=randomBytes(48).toString('base64url');
