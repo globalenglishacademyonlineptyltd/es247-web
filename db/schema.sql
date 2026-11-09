@@ -196,3 +196,22 @@ CREATE TABLE IF NOT EXISTS rate_limit_counters (
  PRIMARY KEY (limiter_name, key_hash)
 );
 CREATE INDEX IF NOT EXISTS rate_limit_counters_reset_time_idx ON rate_limit_counters(reset_time);
+
+
+-- Restricted application account. The account is provisioned separately so its
+-- password is never stored in source control. These grants are applied after
+-- that role exists; migrations continue to run as the database owner.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'es247_runtime') THEN
+    GRANT CONNECT ON DATABASE railway TO es247_runtime;
+    GRANT USAGE ON SCHEMA public TO es247_runtime;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO es247_runtime;
+    GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO es247_runtime;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO es247_runtime;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+      GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO es247_runtime;
+  END IF;
+END
+$$;
