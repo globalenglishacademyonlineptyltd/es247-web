@@ -421,6 +421,16 @@ app.get('/app/download',async(_req,res)=>{
  }
 });
 
+// Do not turn arbitrary file/probe requests into a successful SPA response.
+// Static assets have already been served above; API routes and the APK route have
+// also been handled. Any remaining path whose final segment looks like a file
+// is not a client-side navigation and must return 404.
+app.use((req,res,next)=>{
+ const finalSegment=path.posix.basename(req.path);
+ if(finalSegment.includes('.') && !finalSegment.startsWith('.'))return res.status(404).end();
+ next();
+});
+
 app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')));
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
