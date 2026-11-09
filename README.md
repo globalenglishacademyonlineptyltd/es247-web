@@ -43,3 +43,18 @@ See [MOBILE_API.md](MOBILE_API.md) for the Android API contract.
 ## Release note — 2026-10-28
 
 The production app-download page is intended to deliver the ES 24/7 Android release through the branded domain, with no GitHub or Railway page exposed to clients. This commit is a deployment retry trigger after a Railway BuildKit infrastructure failure; application code is unchanged.
+
+
+## Database migrations and administrator provisioning
+
+The production web service must use only the restricted runtime database account. It must not receive `DATABASE_MIGRATION_URL`, database-owner credentials, or administrator bootstrap credentials.
+
+A separate Railway service named `es247-migrations` runs `node src/migrate.js` from this same repository. Give that service `DATABASE_MIGRATION_URL` (database-owner/migration account), `DATABASE_SSL_CA`, and only the bootstrap variables needed for a deliberate migration/provisioning run. Do not expose those variables to the public web service.
+
+Release order:
+1. Deploy and run `es247-migrations` to apply schema migrations and any approved administrator provisioning.
+2. Confirm the migration job exits successfully.
+3. Deploy the web service with the restricted `DATABASE_URL` only.
+4. Verify the health endpoint, login, company/client access and incident workflow.
+
+Run the migration job deliberately for each release that changes the database schema. Do not run the migration job concurrently with a web deployment. The web service does not run schema migrations or provision administrator accounts during startup.
