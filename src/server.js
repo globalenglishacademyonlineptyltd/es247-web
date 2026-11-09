@@ -102,7 +102,7 @@ app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128),accept_terms:z.boolean().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
-  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
+  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active,session_version FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];
   if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role==='client'){
@@ -119,7 +119,7 @@ app.post('/api/mobile/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128)}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
-  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
+  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active,session_version FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role!=='client')return res.status(403).json({error:'Mobile sign-in is for client accounts only.'});
   res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
@@ -132,8 +132,9 @@ app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'New password must contain at least 6 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
-  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
-  res.json({ok:true,message:'Password updated successfully.'});
+  const updated=await pool.query('UPDATE users SET password_hash=$1,must_change_password=false,session_version=session_version+1 WHERE id=$2 RETURNING session_version',[await hashPassword(p.data.new_password),req.user.id]);
+  const accessToken=createAccessToken({...req.user,session_version:updated.rows[0].session_version});
+  res.json({ok:true,access_token:accessToken,token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,message:'Password updated successfully.'});
  }catch(e){next(e);}
 });
 app.post('/api/auth/logout',(_req,res)=>{clearSession(res);res.json({ok:true});});
@@ -150,7 +151,8 @@ app.post('/api/auth/change-password',authenticate,async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'New password must contain at least 6 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
-  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
+  const updated=await pool.query('UPDATE users SET password_hash=$1,must_change_password=false,session_version=session_version+1 WHERE id=$2 RETURNING session_version',[await hashPassword(p.data.new_password),req.user.id]);
+  issueSession(res,{...req.user,session_version:updated.rows[0].session_version});
   res.json({ok:true});
  }catch(e){next(e);}
 });
@@ -178,7 +180,7 @@ app.post('/api/auth/reset-password',limiter,async(req,res,next)=>{
   const tokenHash=createHash('sha256').update(p.data.token).digest('hex');await db.query('BEGIN');
   const t=await db.query('SELECT id,user_id FROM password_reset_tokens WHERE token_hash=$1 AND used_at IS NULL AND expires_at>NOW() FOR UPDATE',[tokenHash]);
   if(!t.rowCount){await db.query('ROLLBACK');return res.status(400).json({error:'This reset link is invalid or expired. Request a new one.'});}
-  await db.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),t.rows[0].user_id]);
+  await db.query('UPDATE users SET password_hash=$1,must_change_password=false,session_version=session_version+1 WHERE id=$2',[await hashPassword(p.data.new_password),t.rows[0].user_id]);
   await db.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL',[t.rows[0].user_id]);
   await db.query('COMMIT');res.json({ok:true,message:'Password reset successfully. You can now sign in.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
@@ -243,14 +245,14 @@ app.put('/api/master/companies/:id',requireMaster2,async(req,res,next)=>{
 });
 app.post('/api/master/companies/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
  const p=z.object({new_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Temporary password must contain 6–128 characters.'});
- const r=await pool.query("UPDATE users SET password_hash=$1,must_change_password=true WHERE company_id=$2 AND role='controller' AND active=true AND email=(SELECT contact_email FROM companies WHERE id=$2 AND archived_at IS NULL) RETURNING id",[await hashPassword(p.data.new_password),req.params.id]);
+ const r=await pool.query("UPDATE users SET password_hash=$1,must_change_password=true,session_version=session_version+1 WHERE company_id=$2 AND role='controller' AND active=true AND email=(SELECT contact_email FROM companies WHERE id=$2 AND archived_at IS NULL) RETURNING id",[await hashPassword(p.data.new_password),req.params.id]);
  if(!r.rowCount)return res.status(404).json({error:'Active company controller account not found.'});
  await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
  res.json({ok:true,must_change_password:true});
  }catch(e){next(e);}});
 app.post('/api/master/clients/:id/reset-password',requireMaster2,async(req,res,next)=>{try{
  const p=z.object({new_password:password}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Temporary password must contain 6–128 characters.'});
- const r=await pool.query("UPDATE users u SET password_hash=$1,must_change_password=true FROM clients c WHERE c.id=$2 AND c.user_id=u.id AND u.role='client' AND u.active=true RETURNING u.id",[await hashPassword(p.data.new_password),req.params.id]);
+ const r=await pool.query("UPDATE users u SET password_hash=$1,must_change_password=true,session_version=session_version+1 FROM clients c WHERE c.id=$2 AND c.user_id=u.id AND u.role='client' AND u.active=true RETURNING u.id",[await hashPassword(p.data.new_password),req.params.id]);
  if(!r.rowCount)return res.status(404).json({error:'Active client account not found.'});
  await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1',[r.rows[0].id]);
  res.json({ok:true,must_change_password:true});
