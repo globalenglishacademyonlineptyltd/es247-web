@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { pool, verifyDatabaseTls, isProduction } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
 import { isCloudflareIp, isValidOriginSecret } from './cloudflare-proxy.js';
+import { clientTemporaryPasswordSchema } from './password-policy.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
