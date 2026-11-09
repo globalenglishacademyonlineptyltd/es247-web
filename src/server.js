@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { isIP } from 'node:net';
 import { z } from 'zod';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, verifyDatabaseTls, isProduction } from './db.js';
@@ -36,9 +36,23 @@ app.use(helmet({ contentSecurityPolicy: { directives: {
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 const cloudflareProxyRequired=process.env.REQUIRE_CLOUDFLARE_PROXY==='true';
+const cloudflareOriginSecret=process.env.ES247_ORIGIN_SECRET||'';
 let cloudflareHeaderCheckLogged=false;
 app.use((req,res,next)=>{
  if(!isProduction){req.clientIp=req.ip;return next();}
+ // A Cloudflare Transform Rule overwrites this private header on every proxied
+ // request. Direct Railway-origin requests cannot pass this check without the
+ // secret, so do not rely on spoofable client-supplied IP headers as proof.
+ if(cloudflareProxyRequired&&req.path!=='/health'){
+  const supplied=req.get('x-es247-origin-key')||'';
+  const expected=cloudflareOriginSecret;
+  const matches=Boolean(expected)&&Buffer.byteLength(supplied)===Buffer.byteLength(expected)&&timingSafeEqual(Buffer.from(supplied),Buffer.from(expected));
+  if(!matches)return res.status(403).json({error:'Access denied.'});
+  const clientIp=req.get('cf-connecting-ip')||'';
+  req.clientIp=isIP(clientIp)?clientIp:(req.socket.remoteAddress||req.ip);
+  if(!cloudflareHeaderCheckLogged){console.log('Cloudflare origin secret verified; client IP sourced from Cloudflare.');cloudflareHeaderCheckLogged=true;}
+  return next();
+ }
  const edgeIp=req.get('x-real-ip')||'';
  const clientIp=req.get('cf-connecting-ip')||'';
  const trustedEdge=isCloudflareIp(edgeIp);
