@@ -7,8 +7,9 @@ import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool, migrate, verifyDatabaseTls } from './db.js';
+import { pool, migrate, verifyDatabaseTls, isProduction } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
+import { isCloudflareIp } from './cloudflare-proxy.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -23,7 +24,7 @@ function rateLimitIpKey(value) {
  return groups.slice(0,4).map(group=>group.padStart(4,'0')).join(':')+'/64';
 }
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', false);
 app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: { directives: {
   defaultSrc:["'self'"], scriptSrc:["'self'","https://unpkg.com","https://cdnjs.cloudflare.com"],
@@ -33,6 +34,23 @@ app.use(helmet({ contentSecurityPolicy: { directives: {
 }}}));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
+const cloudflareProxyRequired=process.env.REQUIRE_CLOUDFLARE_PROXY==='true';
+let cloudflareHeaderCheckLogged=false;
+app.use((req,res,next)=>{
+ if(!isProduction){req.clientIp=req.ip;return next();}
+ const edgeIp=req.get('x-real-ip')||'';
+ const clientIp=req.get('cf-connecting-ip')||'';
+ const trustedEdge=isCloudflareIp(edgeIp);
+ const validClientIp=isIP(clientIp)!==0;
+ if(trustedEdge&&validClientIp){
+  req.clientIp=clientIp;
+  if(!cloudflareHeaderCheckLogged){console.log('Cloudflare edge IP and client IP headers verified.');cloudflareHeaderCheckLogged=true;}
+  return next();
+ }
+ req.clientIp=req.ip;
+ if(cloudflareProxyRequired&&req.path!=='/health')return res.status(403).json({error:'Access denied.'});
+ next();
+});
 // Prevent browsers and intermediary caches from reusing stale SPA HTML or JavaScript.
 // This is important for the app shell because loader.js dynamically selects app.js.
 app.use((req,res,next)=>{
@@ -50,7 +68,7 @@ app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge
   res.setHeader('Expires','0');
  }
 }}));
-const clientIpKey = req => rateLimitIpKey(req.ip);
+const clientIpKey = req => rateLimitIpKey(req.clientIp || req.ip);
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,keyGenerator:clientIpKey,store:new PostgresRateLimitStore('password-reset'),passOnStoreError:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 // Layered failed-login protection for both browser and mobile sign-in.
 const loginIpLimiter = rateLimit({
