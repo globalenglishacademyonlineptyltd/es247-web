@@ -115,5 +115,8 @@ export async function runPublicSmokeTests() {
     await reader.cancel();
   });
 
+  const { runApplicationFlowSmokeTests } = await import('./application-flow-smoke-test.js');
+  await runApplicationFlowSmokeTests();
+
   console.log('PUBLIC SMOKE TESTS COMPLETED SUCCESSFULLY.');
 }
