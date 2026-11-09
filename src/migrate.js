@@ -56,6 +56,11 @@ async function run() {
     }
   }
 
+  if (process.env.RUN_ES247_PUBLIC_SMOKE_TESTS === 'true') {
+    const { runPublicSmokeTests } = await import('./public-smoke-test.js');
+    await runPublicSmokeTests();
+  }
+
   const count = await migrationPool.query('SELECT COUNT(*)::int AS n FROM users');
   if (count.rows[0].n === 0 && process.env.INITIAL_ADMIN_EMAIL && process.env.INITIAL_ADMIN_PASSWORD) {
     const e = email(process.env.INITIAL_ADMIN_EMAIL);
