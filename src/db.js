@@ -53,5 +53,11 @@ export async function verifyDatabaseTls() {
   if (!connection || connection.ssl !== true) {
     throw new Error('PostgreSQL TLS verification failed: the active database connection is not encrypted.');
   }
-  return { version: connection.version, cipher: connection.cipher };
+  const databaseUrl = new URL(process.env.DATABASE_URL);
+  return {
+    databaseHost: databaseUrl.hostname,
+    databaseName: decodeURIComponent(databaseUrl.pathname.replace(/^\\//, '')),
+    version: connection.version,
+    cipher: connection.cipher
+  };
 }
