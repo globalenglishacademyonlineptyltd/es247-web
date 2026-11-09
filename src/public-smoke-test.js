@@ -39,6 +39,13 @@ export async function runPublicSmokeTests() {
     assert.match(html, /app\.js/i);
   });
 
+  await check('www domain health endpoint', async () => {
+    const response = await fetch('https://www.securitysolutionses247.co.za/health', { redirect: 'follow', signal: timeout(30000) });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+  });
+
   await check('client portal route', async () => {
     const response = await request('/client-app');
     assert.equal(response.status, 200);
