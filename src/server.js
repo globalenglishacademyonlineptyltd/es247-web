@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool, migrate } from './db.js';
+import { pool, migrate, verifyDatabaseTls } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
 
@@ -296,7 +296,7 @@ app.get('/api/company/clients',requireCompanyAccess,async(req,res,next)=>{try{
  const r=await pool.query(`SELECT cl.id,cl.company_id,cl.full_name,cl.phone,cl.alternate_phone,cl.email,cl.address,cl.latitude,cl.longitude,cl.vehicles,cl.family_group_id,cl.archived_at,u.active,u.email AS login_email FROM clients cl JOIN users u ON u.id=cl.user_id WHERE cl.company_id=$1 ORDER BY cl.full_name`,[companyScope(req)]);
  res.json({clients:r.rows});
  }catch(e){next(e);}});
-app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});res.json({ok:true});}catch(e){next(e);}});
+app.post('/api/company/archive/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NOW() WHERE id=$1 AND archived_at IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Company not found.'});await pool.query('UPDATE users SET session_version=session_version+1 WHERE company_id=$1',[req.params.id]);res.json({ok:true});}catch(e){next(e);}});
 app.post('/api/company/restore/:id',requireMaster,async(req,res,next)=>{try{const r=await pool.query('UPDATE companies SET archived_at=NULL WHERE id=$1 AND archived_at IS NOT NULL RETURNING id',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Archived company not found.'});res.json({ok:true});}catch(e){next(e);}});
 app.delete('/api/company/:id',requireMaster,async(req,res,next)=>{
  const db=await pool.connect();
@@ -381,16 +381,18 @@ app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')))
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
  await migrate();
+ const databaseTls=await verifyDatabaseTls();
+ if(databaseTls)console.log('PostgreSQL TLS verified: '+databaseTls.version+' / '+databaseTls.cipher);
  if(process.env.MASTER_ADMIN_2_EMAIL){
    const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const target=await pool.query('SELECT id,role FROM users WHERE LOWER(email)=LOWER($1)',[e]);
+   const target=await pool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)',[e]);
    if(target.rowCount){
-    await pool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true WHERE id=$2",[e,target.rows[0].id]);
+    await pool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>'master_admin_2' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2",[e,target.rows[0].id]);
     console.log('Second master administrator account role verified and enforced; existing password preserved.');
    } else {
     const current=await pool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
     if(current.rowCount){
-     await pool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true WHERE id=$2',[e,current.rows[0].id]);
+     await pool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>\'master_admin_2\' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2',[e,current.rows[0].id]);
      console.log('Second master administrator email updated and role enforced; existing password preserved.');
     } else {
      const oneTimePassword=randomBytes(48).toString('base64url');
