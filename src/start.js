@@ -54,7 +54,7 @@ app.get(['/app','/app/','/download','/download/'],(_req,res)=>{res.type('html').
 app.get('/app/download',async(_req,res)=>{try{const response=await fetch('https://github.com/globalenglishacademyonlineptyltd/es247-andriod/releases/download/android-latest/app-release.apk',{redirect:'follow',cache:'no-store'});if(!response.ok)return res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again.');const data=await response.arrayBuffer();res.setHeader('Content-Type','application/vnd.android.package-archive');res.setHeader('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');res.setHeader('Content-Length',String(data.byteLength));res.setHeader('Cache-Control','no-store');res.send(Buffer.from(data));}catch(e){console.error('App download failed:',e.message);res.status(502).send('The ES 24/7 app download is temporarily unavailable. Please try again.');}});`;
 const staticIndex=source.indexOf(staticLine);
 if(staticIndex<0)throw new Error('Could not locate the public static-file middleware for app download routes.');
-source=source.slice(0,staticIndex)+appDownloadRoutes+'\\n'+source.slice(staticIndex);
+source=source.slice(0,staticIndex)+appDownloadRoutes+'\n'+source.slice(staticIndex);
 
 const indexPath=path.join(publicPath,'index.html');
 let index=fs.readFileSync(indexPath,'utf8');
