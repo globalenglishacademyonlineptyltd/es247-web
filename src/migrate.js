@@ -1,3 +1,4 @@
+const production = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT_NAME === 'production';
 import { migrationPool, migrate } from './migrations.js';
 const email = value => {
   const result = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()) && String(value).length <= 254;
