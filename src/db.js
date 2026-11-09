@@ -10,7 +10,7 @@ const databaseSsl = isProduction
   : false;
 const poolOptions = { max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 };
 // Normal application queries use the restricted DATABASE_URL account.
-// Migrations and one-time startup provisioning use the separate admin URL.
+// Privileged schema changes and administrator provisioning run only in src/migrate.js.
 export const pool = new Pool({ ...poolOptions, connectionString: process.env.DATABASE_URL, ssl: databaseSsl });
 // Keep the public incident API company-scoped while exposing the persistent
 // company-local panic number to the existing frontend without changing its
