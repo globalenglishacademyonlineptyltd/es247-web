@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('master_admin','master_admin_2','controller','client'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS clients (
  id BIGSERIAL PRIMARY KEY, company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
  user_id BIGINT UNIQUE REFERENCES users(id) ON DELETE RESTRICT, full_name TEXT NOT NULL,
