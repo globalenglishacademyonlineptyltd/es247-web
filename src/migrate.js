@@ -23,6 +23,20 @@ async function run() {
   await migrate();
   console.log('Database schema migrations completed.');
 
+  // Rotate the restricted web-runtime login only from this privileged migration job.
+  // The web service never receives the migration database credential.
+  if (process.env.DATABASE_RUNTIME_PASSWORD) {
+    const runtimePassword = process.env.DATABASE_RUNTIME_PASSWORD;
+    if (runtimePassword.length < 32 || runtimePassword.length > 256) {
+      throw new Error('DATABASE_RUNTIME_PASSWORD must contain 32 to 256 characters.');
+    }
+    const role = await migrationPool.query("SELECT 1 FROM pg_roles WHERE rolname='es247_runtime'");
+    if (!role.rowCount) throw new Error('Restricted database role es247_runtime does not exist.');
+    const statement = await migrationPool.query("SELECT format('ALTER ROLE es247_runtime WITH LOGIN PASSWORD %L', $1) AS sql", [runtimePassword]);
+    await migrationPool.query(statement.rows[0].sql);
+    console.log('Restricted runtime database credential rotated successfully.');
+  }
+
   if (process.env.MASTER_ADMIN_2_EMAIL) {
     const e = email(process.env.MASTER_ADMIN_2_EMAIL);
     const target = await migrationPool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)', [e]);
