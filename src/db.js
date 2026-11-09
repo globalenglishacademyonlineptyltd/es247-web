@@ -43,3 +43,14 @@ export async function migrate() {
     await rawPoolQuery(`UPDATE users SET must_change_password = false WHERE role = 'client'`);
   }
 }
+
+// Confirm the live pooled connection is encrypted, not merely that SSL is configured.
+export async function verifyDatabaseTls() {
+  if (process.env.NODE_ENV !== 'production') return null;
+  const result = await pool.query('SELECT ssl, version, cipher FROM pg_stat_ssl WHERE pid = pg_backend_pid()');
+  const connection = result.rows[0];
+  if (!connection || connection.ssl !== true) {
+    throw new Error('PostgreSQL TLS verification failed: the active database connection is not encrypted.');
+  }
+  return { version: connection.version, cipher: connection.cipher };
+}
