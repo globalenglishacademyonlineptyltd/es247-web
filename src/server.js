@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, migrate, verifyDatabaseTls } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
-import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
+import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 function rateLimitIpKey(value) {
@@ -381,6 +381,7 @@ app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')))
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
  await migrate();
+ validateAuthConfig();
  const databaseTls=await verifyDatabaseTls();
  if(databaseTls)console.log('PostgreSQL TLS verified: '+databaseTls.version+' / '+databaseTls.cipher);
  if(process.env.MASTER_ADMIN_2_EMAIL){
