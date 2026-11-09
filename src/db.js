@@ -56,7 +56,7 @@ export async function verifyDatabaseTls() {
   const databaseUrl = new URL(process.env.DATABASE_URL);
   return {
     databaseHost: databaseUrl.hostname,
-    databaseName: decodeURIComponent(databaseUrl.pathname.replace(/^\\//, '')),
+    databaseName: decodeURIComponent(databaseUrl.pathname.slice(1)),
     version: connection.version,
     cipher: connection.cipher
   };
