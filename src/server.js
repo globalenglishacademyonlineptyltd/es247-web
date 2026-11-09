@@ -67,6 +67,16 @@ app.use((req,res,next)=>{
  if(cloudflareProxyRequired&&req.path!=='/health')return res.status(403).json({error:'Access denied.'});
  next();
 });
+// Reject hidden paths before static serving and the SPA fallback. Without this,
+// unknown dotfile URLs such as /.env and /.git/config receive index.html with 200,
+// which confuses scanners and can mask accidental exposure in future changes.
+app.use((req,res,next)=>{
+ const segments=req.path.split('/').filter(Boolean);
+ const forbiddenHiddenPath=segments.some((segment,index)=>segment.startsWith('.')&&!(index===0&&segment==='.well-known'));
+ if(forbiddenHiddenPath)return res.status(404).end();
+ next();
+});
+
 // Prevent browsers and intermediary caches from reusing stale SPA HTML or JavaScript.
 // This is important for the app shell because loader.js dynamically selects app.js.
 app.use((req,res,next)=>{
