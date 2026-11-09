@@ -4,12 +4,13 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { isIP } from 'node:net';
 import { z } from 'zod';
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, verifyDatabaseTls, isProduction } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
-import { isCloudflareIp } from './cloudflare-proxy.js';
+import { isCloudflareIp, isValidOriginSecret } from './cloudflare-proxy.js';
+import { clientTemporaryPasswordSchema } from './password-policy.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,8 +46,7 @@ app.use((req,res,next)=>{
  // secret, so do not rely on spoofable client-supplied IP headers as proof.
  if(cloudflareProxyRequired&&req.path!=='/health'){
   const supplied=req.get('x-es247-origin-key')||'';
-  const expected=cloudflareOriginSecret;
-  const matches=Boolean(expected)&&Buffer.byteLength(supplied)===Buffer.byteLength(expected)&&timingSafeEqual(Buffer.from(supplied),Buffer.from(expected));
+  const matches=isValidOriginSecret(supplied,cloudflareOriginSecret);
   if(!matches)return res.status(403).json({error:'Access denied.'});
   const clientIp=req.get('cf-connecting-ip')||'';
   req.clientIp=isIP(clientIp)?clientIp:(req.socket.remoteAddress||req.ip);

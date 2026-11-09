@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { timingSafeEqual } from 'node:crypto';
 
 const IPV4_CIDRS = [
   '173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22',
@@ -65,4 +66,12 @@ export function isCloudflareIp(input) {
   if (version === 4) return IPV4_CIDRS.some(cidr => cidrContains(ip, cidr));
   if (version === 6) return IPV6_CIDRS.some(cidr => cidrContains(ip, cidr));
   return false;
+}
+
+
+export function isValidOriginSecret(supplied, expected) {
+  if (typeof supplied !== 'string' || typeof expected !== 'string' || expected.length === 0) return false;
+  const suppliedBytes = Buffer.from(supplied);
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
 }
