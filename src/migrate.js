@@ -18,7 +18,7 @@ async function run() {
   const tls = await migrationPool.query('SELECT ssl, version, cipher FROM pg_stat_ssl WHERE pid=pg_backend_pid()');
   if (production && tls.rows[0]?.ssl !== true) throw new Error('Migration database TLS verification failed.');
   const identity = await migrationPool.query('SELECT current_user, current_database()');
-  console.log('Migration database connected as ' + identity.rows[0].current_user + ' to ' + identity.rows[0].current_database());
+  console.log('Migration database connected as ' + identity.rows[0].current_user + ' to ' + identity.rows[0].current_database);
 
   await migrate();
   console.log('Database schema migrations completed.');
