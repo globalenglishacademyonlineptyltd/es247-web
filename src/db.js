@@ -9,12 +9,17 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Attach
 if (isProduction && !process.env.DATABASE_SSL_CA) {
   throw new Error('DATABASE_SSL_CA is required in production to verify the Railway PostgreSQL certificate.');
 }
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: isProduction
-    ? { rejectUnauthorized: true, ca: process.env.DATABASE_SSL_CA }
-    : false,
-  max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000
+const databaseSsl = isProduction
+  ? { rejectUnauthorized: true, ca: process.env.DATABASE_SSL_CA }
+  : false;
+const poolOptions = { max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 };
+// Normal application queries use the restricted DATABASE_URL account.
+// Migrations and one-time startup provisioning use the separate admin URL.
+export const pool = new Pool({ ...poolOptions, connectionString: process.env.DATABASE_URL, ssl: databaseSsl });
+export const migrationPool = new Pool({
+  ...poolOptions,
+  connectionString: process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL,
+  ssl: databaseSsl
 });
 
 // Keep the public incident API company-scoped while exposing the persistent
@@ -34,14 +39,14 @@ pool.query = function(text, values) {
 };
 
 export async function migrate() {
-  await rawPoolQuery(await fs.readFile(path.resolve(here, '../db/schema.sql'), 'utf8'));
+  await migrationPool.query(await fs.readFile(path.resolve(here, '../db/schema.sql'), 'utf8'));
   // One-time compatibility migration: existing client accounts keep their
   // current passwords and are not forced through a password change screen.
   // Newly created clients still receive must_change_password=true.
-  await rawPoolQuery(`CREATE TABLE IF NOT EXISTS app_migrations (migration_key TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-  const migration = await rawPoolQuery(`INSERT INTO app_migrations(migration_key) VALUES ('existing-clients-no-forced-password-reset-v1') ON CONFLICT DO NOTHING RETURNING migration_key`);
+  await migrationPool.query(`CREATE TABLE IF NOT EXISTS app_migrations (migration_key TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  const migration = await migrationPool.query(`INSERT INTO app_migrations(migration_key) VALUES ('existing-clients-no-forced-password-reset-v1') ON CONFLICT DO NOTHING RETURNING migration_key`);
   if (migration.rowCount) {
-    await rawPoolQuery(`UPDATE users SET must_change_password = false WHERE role = 'client'`);
+    await migrationPool.query(`UPDATE users SET must_change_password = false WHERE role = 'client'`);
   }
 }
 
