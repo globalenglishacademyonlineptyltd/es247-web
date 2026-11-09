@@ -405,7 +405,7 @@ app.post('/api/company/requests/:id/status',requireCompanyAccess,async(req,res,n
  }catch(e){next(e);}});
 
 app.use('/api',(_req,res)=>res.status(404).json({error:'API route not found.'}));
-app.get('/app/download',async(_req,res)=>{
+app.get('/app/client-release-2026.apk',async(_req,res)=>{
  try{
   // Fetch the exact production release asset server-side. The browser only ever
   // receives the APK from this ES 24/7 domain; GitHub URLs are never exposed.
