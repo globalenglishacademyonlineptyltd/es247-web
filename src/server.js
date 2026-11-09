@@ -87,6 +87,36 @@ app.use((req,res,next)=>{
  }
  next();
 });
+app.get('/app/client-release-2026.apk',async(_req,res)=>{
+ try{
+  // Fetch the exact production release asset server-side. The browser only ever
+  // receives the APK from this ES 24/7 domain; GitHub URLs are never exposed.
+  const upstream=await fetch('https://api.github.com/repos/globalenglishacademyonlineptyltd/es247-andriod/releases/assets/728825203',{
+   headers:{Accept:'application/octet-stream','X-GitHub-Api-Version':'2022-11-28'},
+   redirect:'follow',
+   signal:AbortSignal.timeout(30000)
+  });
+  if(!upstream.ok)throw new Error('Release asset fetch returned HTTP '+upstream.status);
+  const apk=Buffer.from(await upstream.arrayBuffer());
+  const expectedSize=1218768;
+  const expectedSha256='f9643af579615308ea73301cf89b893fc6a35c5d582ea670aa30df1a610ed43f';
+  const actualSha256=createHash('sha256').update(apk).digest('hex');
+  if(apk.length!==expectedSize||actualSha256!==expectedSha256){
+   console.error('ES 24/7 APK release verification failed: size/hash mismatch.');
+   return res.status(502).send('The verified ES 24/7 app download is temporarily unavailable. Please try again shortly.');
+  }
+  res.set('Content-Type','application/vnd.android.package-archive');
+  res.set('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');
+  res.set('Cache-Control','private, no-store, no-cache, must-revalidate');
+  res.set('X-Content-Type-Options','nosniff');
+  res.set('Content-Length',String(apk.length));
+  res.send(apk);
+ }catch(error){
+  console.error('ES 24/7 APK download failed:',error.message);
+  res.status(502).send('The verified ES 24/7 app download is temporarily unavailable. Please try again shortly.');
+ }
+});
+
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0,setHeaders(res,filePath){
  if(/\\.(?:html?|js)$/i.test(filePath)){
   res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -405,35 +435,7 @@ app.post('/api/company/requests/:id/status',requireCompanyAccess,async(req,res,n
  }catch(e){next(e);}});
 
 app.use('/api',(_req,res)=>res.status(404).json({error:'API route not found.'}));
-app.get('/app/client-release-2026.apk',async(_req,res)=>{
- try{
-  // Fetch the exact production release asset server-side. The browser only ever
-  // receives the APK from this ES 24/7 domain; GitHub URLs are never exposed.
-  const upstream=await fetch('https://api.github.com/repos/globalenglishacademyonlineptyltd/es247-andriod/releases/assets/728825203',{
-   headers:{Accept:'application/octet-stream','X-GitHub-Api-Version':'2022-11-28'},
-   redirect:'follow',
-   signal:AbortSignal.timeout(30000)
-  });
-  if(!upstream.ok)throw new Error('Release asset fetch returned HTTP '+upstream.status);
-  const apk=Buffer.from(await upstream.arrayBuffer());
-  const expectedSize=1218768;
-  const expectedSha256='f9643af579615308ea73301cf89b893fc6a35c5d582ea670aa30df1a610ed43f';
-  const actualSha256=createHash('sha256').update(apk).digest('hex');
-  if(apk.length!==expectedSize||actualSha256!==expectedSha256){
-   console.error('ES 24/7 APK release verification failed: size/hash mismatch.');
-   return res.status(502).send('The verified ES 24/7 app download is temporarily unavailable. Please try again shortly.');
-  }
-  res.set('Content-Type','application/vnd.android.package-archive');
-  res.set('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');
-  res.set('Cache-Control','private, no-store, no-cache, must-revalidate');
-  res.set('X-Content-Type-Options','nosniff');
-  res.set('Content-Length',String(apk.length));
-  res.send(apk);
- }catch(error){
-  console.error('ES 24/7 APK download failed:',error.message);
-  res.status(502).send('The verified ES 24/7 app download is temporarily unavailable. Please try again shortly.');
- }
-});
+
 
 // Do not turn arbitrary file/probe requests into a successful SPA response.
 // Static assets have already been served above; API routes and the APK route have
