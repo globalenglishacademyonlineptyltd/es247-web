@@ -4,13 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const { Pool } = pg;
 const here = path.dirname(fileURLToPath(import.meta.url));
+export const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT_NAME === 'production';
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Attach PostgreSQL before starting ES 24/7.');
-if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_SSL_CA) {
+if (isProduction && !process.env.DATABASE_SSL_CA) {
   throw new Error('DATABASE_SSL_CA is required in production to verify the Railway PostgreSQL certificate.');
 }
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
+  ssl: isProduction
     ? { rejectUnauthorized: true, ca: process.env.DATABASE_SSL_CA }
     : false,
   max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000
@@ -46,7 +47,7 @@ export async function migrate() {
 
 // Confirm the live pooled connection is encrypted, not merely that SSL is configured.
 export async function verifyDatabaseTls() {
-  if (process.env.NODE_ENV !== 'production') return null;
+  if (!isProduction) return null;
   const result = await pool.query('SELECT ssl, version, cipher FROM pg_stat_ssl WHERE pid = pg_backend_pid()');
   const connection = result.rows[0];
   if (!connection || connection.ssl !== true) {
