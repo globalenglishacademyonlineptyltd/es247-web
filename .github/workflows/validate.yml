@@ -1,7 +1,7 @@
 name: Validate ES 24/7
 on:
   push:
-    branches: [main, safe-client-terms-menu]
+    branches: [main, safe-client-terms-menu, 'security/**']
   pull_request:
     branches: [main, safe-client-terms-menu]
 jobs:

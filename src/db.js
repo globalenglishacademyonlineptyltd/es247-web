@@ -1,9 +1,5 @@
 import pg from 'pg';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 const { Pool } = pg;
-const here = path.dirname(fileURLToPath(import.meta.url));
 export const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT_NAME === 'production';
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Attach PostgreSQL before starting ES 24/7.');
 if (isProduction && !process.env.DATABASE_SSL_CA) {
@@ -14,14 +10,8 @@ const databaseSsl = isProduction
   : false;
 const poolOptions = { max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 };
 // Normal application queries use the restricted DATABASE_URL account.
-// Migrations and one-time startup provisioning use the separate admin URL.
+// Privileged schema changes and administrator provisioning run only in src/migrate.js.
 export const pool = new Pool({ ...poolOptions, connectionString: process.env.DATABASE_URL, ssl: databaseSsl });
-export const migrationPool = new Pool({
-  ...poolOptions,
-  connectionString: process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL,
-  ssl: databaseSsl
-});
-
 // Keep the public incident API company-scoped while exposing the persistent
 // company-local panic number to the existing frontend without changing its
 // internal/global incident ID used by database relationships.
@@ -37,18 +27,6 @@ pool.query = function(text, values) {
   }
   return rawPoolQuery(text, values);
 };
-
-export async function migrate() {
-  await migrationPool.query(await fs.readFile(path.resolve(here, '../db/schema.sql'), 'utf8'));
-  // One-time compatibility migration: existing client accounts keep their
-  // current passwords and are not forced through a password change screen.
-  // Newly created clients still receive must_change_password=true.
-  await migrationPool.query(`CREATE TABLE IF NOT EXISTS app_migrations (migration_key TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-  const migration = await migrationPool.query(`INSERT INTO app_migrations(migration_key) VALUES ('existing-clients-no-forced-password-reset-v1') ON CONFLICT DO NOTHING RETURNING migration_key`);
-  if (migration.rowCount) {
-    await migrationPool.query(`UPDATE users SET must_change_password = false WHERE role = 'client'`);
-  }
-}
 
 // Confirm the live pooled connection is encrypted, not merely that SSL is configured.
 export async function verifyDatabaseTls() {

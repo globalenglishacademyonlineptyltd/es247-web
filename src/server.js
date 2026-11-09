@@ -4,10 +4,10 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { isIP } from 'node:net';
 import { z } from 'zod';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool, migrationPool, migrate, verifyDatabaseTls, isProduction } from './db.js';
+import { pool, verifyDatabaseTls, isProduction } from './db.js';
 import PostgresRateLimitStore from './postgres-rate-limit-store.js';
 import { isCloudflareIp } from './cloudflare-proxy.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, validateAuthConfig, SESSION_TTL_SECONDS } from './auth.js';
@@ -36,9 +36,23 @@ app.use(helmet({ contentSecurityPolicy: { directives: {
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
 const cloudflareProxyRequired=process.env.REQUIRE_CLOUDFLARE_PROXY==='true';
+const cloudflareOriginSecret=process.env.ES247_ORIGIN_SECRET||'';
 let cloudflareHeaderCheckLogged=false;
 app.use((req,res,next)=>{
  if(!isProduction){req.clientIp=req.ip;return next();}
+ // A Cloudflare Transform Rule overwrites this private header on every proxied
+ // request. Direct Railway-origin requests cannot pass this check without the
+ // secret, so do not rely on spoofable client-supplied IP headers as proof.
+ if(cloudflareProxyRequired&&req.path!=='/health'){
+  const supplied=req.get('x-es247-origin-key')||'';
+  const expected=cloudflareOriginSecret;
+  const matches=Boolean(expected)&&Buffer.byteLength(supplied)===Buffer.byteLength(expected)&&timingSafeEqual(Buffer.from(supplied),Buffer.from(expected));
+  if(!matches)return res.status(403).json({error:'Access denied.'});
+  const clientIp=req.get('cf-connecting-ip')||'';
+  req.clientIp=isIP(clientIp)?clientIp:(req.socket.remoteAddress||req.ip);
+  if(!cloudflareHeaderCheckLogged){console.log('Cloudflare origin secret verified; client IP sourced from Cloudflare.');cloudflareHeaderCheckLogged=true;}
+  return next();
+ }
  const edgeIp=req.get('x-real-ip')||'';
  const clientIp=req.get('cf-connecting-ip')||'';
  const trustedEdge=isCloudflareIp(edgeIp);
@@ -400,34 +414,9 @@ app.get('/app/download',async(_req,res)=>{
 app.get('*',(_req,res)=>res.sendFile(path.resolve(here,'../public/index.html')));
 app.use((err,_req,res,_next)=>{console.error('Request failed:',err.message);if(!res.headersSent)res.status(500).json({error:'Something went wrong. Please try again. If the issue continues, contact support.'});});
 async function start(){
- await migrate();
- validateAuthConfig();
- const databaseTls=await verifyDatabaseTls();
- if(databaseTls)console.log('PostgreSQL TLS verified for '+databaseTls.databaseHost+'/'+databaseTls.databaseName+': '+databaseTls.version+' / '+databaseTls.cipher);
- if(process.env.MASTER_ADMIN_2_EMAIL){
-   const e=email.parse(process.env.MASTER_ADMIN_2_EMAIL);
-   const target=await migrationPool.query('SELECT id,role,email,company_id,active FROM users WHERE LOWER(email)=LOWER($1)',[e]);
-   if(target.rowCount){
-    await migrationPool.query("UPDATE users SET email=$1,role='master_admin_2',company_id=NULL,display_name='Chanelle',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>'master_admin_2' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2",[e,target.rows[0].id]);
-    console.log('Second master administrator account role verified and enforced; existing password preserved.');
-   } else {
-    const current=await migrationPool.query("SELECT id FROM users WHERE role='master_admin_2' ORDER BY id LIMIT 1");
-    if(current.rowCount){
-     await migrationPool.query('UPDATE users SET email=$1,role=\'master_admin_2\',company_id=NULL,display_name=\'Chanelle\',active=true,session_version=session_version+CASE WHEN LOWER(email)<>LOWER($1) OR role<>\'master_admin_2\' OR company_id IS NOT NULL OR active=false THEN 1 ELSE 0 END WHERE id=$2',[e,current.rows[0].id]);
-     console.log('Second master administrator email updated and role enforced; existing password preserved.');
-    } else {
-     const oneTimePassword=randomBytes(48).toString('base64url');
-     await migrationPool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password,active) VALUES($1,$2,'master_admin_2',NULL,'Chanelle',true,true)",[e,await hashPassword(oneTimePassword)]);
-     console.log('Second master administrator provisioned; password change required.');
-    }
-   }
-  }
-  const count=await migrationPool.query('SELECT COUNT(*)::int AS n FROM users');
- if(count.rows[0].n===0&&process.env.INITIAL_ADMIN_EMAIL&&process.env.INITIAL_ADMIN_PASSWORD){
-  const e=email.parse(process.env.INITIAL_ADMIN_EMAIL),p=password.parse(process.env.INITIAL_ADMIN_PASSWORD);
-  await migrationPool.query("INSERT INTO users(email,password_hash,role,company_id,display_name,must_change_password) VALUES($1,$2,'master_admin',NULL,'Master Administrator',false)",[e,await hashPassword(p)]);
-  console.log('Initial master administrator created from environment configuration.');
- }
- const port=Number(process.env.PORT||8080);app.listen(port,'0.0.0.0',()=>console.log('ES 24/7 listening on '+port));
+  validateAuthConfig();
+  const databaseTls=await verifyDatabaseTls();
+  if(databaseTls)console.log('PostgreSQL TLS verified for '+databaseTls.databaseHost+'/'+databaseTls.databaseName+': '+databaseTls.version+' / '+databaseTls.cipher);
+  const port=Number(process.env.PORT||8080);app.listen(port,'0.0.0.0',()=>console.log('ES 24/7 listening on '+port));
 }
 start().catch(e=>{console.error('Startup failed:',e.message);process.exit(1);});
