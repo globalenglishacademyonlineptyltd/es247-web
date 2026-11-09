@@ -8,6 +8,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, migrate } from './db.js';
+import PostgresRateLimitStore from './postgres-rate-limit-store.js';
 import { authenticate, requireRole, requirePasswordChanged, issueSession, createAccessToken, clearSession, hashPassword, verifyPassword, SESSION_TTL_SECONDS } from './auth.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -49,19 +50,22 @@ app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge
   res.setHeader('Expires','0');
  }
 }}));
-const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
+const clientIpKey = req => rateLimitIpKey(req.ip);
+const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,keyGenerator:clientIpKey,store:new PostgresRateLimitStore('password-reset'),passOnStoreError:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 // Layered failed-login protection for both browser and mobile sign-in.
 const loginIpLimiter = rateLimit({
  windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false,
+ keyGenerator:clientIpKey,store:new PostgresRateLimitStore('login-ip'),passOnStoreError:false,
  skipSuccessfulRequests:true,
  message:{error:'Too many sign-in attempts from this network. Please wait 15 minutes and try again.'}
 });
 const loginAccountIpLimiter = rateLimit({
  windowMs:15*60*1000,limit:5,standardHeaders:'draft-7',legacyHeaders:false,
+ store:new PostgresRateLimitStore('login-account-ip'),passOnStoreError:false,
  skipSuccessfulRequests:true,
  keyGenerator:req=>{
   const account=String(req.body?.email||'').trim().toLowerCase();
-  const ip=rateLimitIpKey(req.ip);
+  const ip=clientIpKey(req);
   return createHash('sha256').update(ip+'|'+account).digest('hex');
  },
  message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
@@ -96,7 +100,7 @@ async function notifyCompanyOnPanic(companyId, incident, locationText) {
  } catch(e) { console.error('Panic notification could not be sent:',e.message); }
 }
 
-app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
+app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false,keyGenerator:clientIpKey,store:new PostgresRateLimitStore('legal-preflight'),passOnStoreError:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
 app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
  try{
