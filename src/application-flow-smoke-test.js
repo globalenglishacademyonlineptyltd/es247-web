@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { migrationPool } from './migrations.js';
 
 const base = (process.env.ES247_PUBLIC_URL || 'https://securitysolutionses247.co.za').replace(/\/$/, '');
 const timeout = ms => AbortSignal.timeout(ms);
@@ -23,6 +22,7 @@ async function json(response) {
 }
 
 export async function runApplicationFlowSmokeTests() {
+  const { migrationPool } = await import('./migrations.js');
   const suffix = randomBytes(10).toString('hex');
   const masterEmail = 'es247-master-smoke-' + suffix + '@example.invalid';
   const controllerEmail = 'es247-controller-smoke-' + suffix + '@example.invalid';
