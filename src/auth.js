@@ -10,7 +10,7 @@ function secret() {
 export const hashPassword = password => bcrypt.hash(password, 12);
 export const verifyPassword = (password, hash) => bcrypt.compare(password, hash);
 export function createAccessToken(user) {
-  return jwt.sign({ sub: String(user.id), role: user.role, companyId: user.company_id ?? null },
+  return jwt.sign({ sub: String(user.id), role: user.role, companyId: user.company_id ?? null, sv: Number(user.session_version ?? 0) },
     secret(), { expiresIn: SESSION_TTL_SECONDS, issuer: 'es247', audience: 'es247-web' });
 }
 export function issueSession(res, user) {
@@ -28,8 +28,12 @@ export async function authenticate(req, res, next) {
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : req.cookies?.[COOKIE];
     if (!token) return res.status(401).json({ error: 'Please sign in.' });
     const claims = jwt.verify(token, secret(), { issuer: 'es247', audience: 'es247-web', maxAge: SESSION_TTL_SECONDS });
-    const result = await pool.query('SELECT id,email,role,company_id,display_name,must_change_password,active FROM users WHERE id=$1', [claims.sub]);
+    const result = await pool.query('SELECT id,email,role,company_id,display_name,must_change_password,active,session_version FROM users WHERE id=$1', [claims.sub]);
     const user = result.rows[0];
+    if (user && Number(claims.sv ?? 0) !== Number(user.session_version ?? 0)) {
+      clearSession(res);
+      return res.status(401).json({ error: 'Your session has been revoked. Please sign in again.' });
+    }
     if (!user || !user.active) { clearSession(res); return res.status(user?.role === 'client' ? 403 : 401).json({ error: user?.role === 'client' ? 'Your account is paused. Please contact your security company.' : 'This account is inactive.' }); }
     if (user.role !== 'master_admin' && user.company_id) {
       const company = await pool.query('SELECT archived_at FROM companies WHERE id=$1', [user.company_id]);
