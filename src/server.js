@@ -87,7 +87,7 @@ app.use((req,res,next)=>{
  }
  next();
 });
-app.get('/app/client-release-2026.apk',async(_req,res)=>{
+app.get(['/app/client-release-2026.apk','/app/download'],async(_req,res)=>{
  try{
   // Fetch the exact production release asset server-side. The browser only ever
   // receives the APK from this ES 24/7 domain; GitHub URLs are never exposed.
@@ -106,7 +106,7 @@ app.get('/app/client-release-2026.apk',async(_req,res)=>{
    return res.status(502).send('The verified ES 24/7 app download is temporarily unavailable. Please try again shortly.');
   }
   res.set('Content-Type','application/vnd.android.package-archive');
-  res.set('Content-Disposition','attachment; filename="ES-24-7-Client-App.apk"');
+  res.set('Content-Disposition','attachment; filename="ES247-Client-App-1.2.2.apk"');
   res.set('Cache-Control','private, no-store, no-cache, must-revalidate');
   res.set('X-Content-Type-Options','nosniff');
   res.set('Content-Length',String(apk.length));
