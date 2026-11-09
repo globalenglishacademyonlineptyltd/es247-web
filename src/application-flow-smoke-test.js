@@ -14,6 +14,11 @@ function sessionCookie(response) {
   assert.match(raw, /HttpOnly/i, 'Session cookie must be HttpOnly');
   assert.match(raw, /Secure/i, 'Session cookie must be Secure');
   assert.match(raw, /SameSite=Strict/i, 'Session cookie must use SameSite=Strict');
+  const token = raw.split(';')[0].split('=')[1];
+  const parts = token.split('.');
+  assert.equal(parts.length, 3, 'Session cookie must contain a signed JWT');
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  assert.equal(payload.exp - payload.iat, 8 * 60 * 60, 'JWT session lifetime must be eight hours');
   return raw.split(';')[0];
 }
 
