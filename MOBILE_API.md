@@ -22,7 +22,7 @@ Header: `Authorization: Bearer <access_token>`
 {"current_password":"temporary-password","new_password":"a-new-strong-password"}
 ```
 
-New passwords must contain at least 12 characters. A client marked `must_change_password=true` should call this endpoint after login and before enabling panic actions. The API change is implemented, but must still be tested with the actual Android build and production database before rollout.
+New passwords must contain at least 6 characters. A client marked `must_change_password=true` should call this endpoint after login and before enabling panic actions. The production web API enforces the six-character minimum for this endpoint.
 
 ## Submit panic
 
