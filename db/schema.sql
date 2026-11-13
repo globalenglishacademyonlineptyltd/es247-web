@@ -185,3 +185,32 @@ ON CONFLICT(migration_key) DO NOTHING;
 
 -- Company confirmation is required before Master Admin 2 can permanently delete an archived client.
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS permanent_delete_requested_at TIMESTAMPTZ;
+
+
+-- Persistent five-attempt lockout for company and client sign-in accounts.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS users_locked_accounts_idx ON users(locked_at DESC) WHERE locked_at IS NOT NULL;
+
+-- Security history is retained for Master Admin 2 review; passwords and tokens are never stored here.
+CREATE TABLE IF NOT EXISTS login_security_events (
+ id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+ event_type TEXT NOT NULL,
+ ip_address TEXT,
+ user_agent TEXT,
+ details JSONB NOT NULL DEFAULT '{}'::jsonb,
+ severity TEXT NOT NULL DEFAULT 'medium' CHECK(severity IN ('low','medium','high','critical')),
+ request_path TEXT,
+ http_method TEXT,
+ status_code INTEGER,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE login_security_events DROP CONSTRAINT IF EXISTS login_security_events_event_type_check;
+ALTER TABLE login_security_events ADD COLUMN IF NOT EXISTS severity TEXT NOT NULL DEFAULT 'medium';
+ALTER TABLE login_security_events ADD COLUMN IF NOT EXISTS request_path TEXT;
+ALTER TABLE login_security_events ADD COLUMN IF NOT EXISTS http_method TEXT;
+ALTER TABLE login_security_events ADD COLUMN IF NOT EXISTS status_code INTEGER;
+CREATE INDEX IF NOT EXISTS login_security_events_severity_idx ON login_security_events(severity,created_at DESC);
+CREATE INDEX IF NOT EXISTS login_security_events_created_idx ON login_security_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS login_security_events_user_idx ON login_security_events(user_id,created_at DESC);
