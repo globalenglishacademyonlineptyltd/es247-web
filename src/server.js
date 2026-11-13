@@ -21,6 +21,25 @@ app.use(helmet({ contentSecurityPolicy: { directives: {
 }}}));
 app.use(express.json({limit:'1mb'}));
 app.use(cookieParser());
+// Record security-relevant HTTP activity without storing request bodies, passwords,
+// cookies, authorization headers, or query-string values.
+app.use((req,res,next)=>{
+ const started=Date.now();
+ res.on('finish',()=>{
+  const p=String(req.path||'').slice(0,500), method=String(req.method||'').slice(0,12);
+  const status=Number(res.statusCode||0);
+  const authPath=/^\/api\/(auth|mobile\/auth)\//.test(p);
+  const probePath=/\/(wp-admin|wp-login|\.env|\.git|phpmyadmin|xmlrpc|cgi-bin)(\/|$)/i.test(p);
+  const sensitive=/^\/api\/(master2\/security|auth\/(forgot-password|reset-password|change-password)|mobile\/auth)/.test(p);
+  if(!(authPath||probePath||sensitive||[401,403,404,423,429].includes(status)))return;
+  const severity=probePath||status===429?'high':status===401||status===403?'medium':'low';
+  const eventType=probePath?'url_probe':status===429?'rate_limited':status===401?'unauthorised_request':status===403?'forbidden_request':status===404?'not_found_request':status===423?'locked_account_request':authPath?'authentication_activity':'security_activity';
+  const details={method,status_code:status,duration_ms:Date.now()-started,path:p,referer:String(req.get('referer')||'').slice(0,500)};
+  void pool.query("INSERT INTO login_security_events(event_type,ip_address,user_agent,details,severity,request_path,http_method,status_code) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8)",
+   [eventType,req.ip||null,String(req.get('user-agent')||'').slice(0,500),JSON.stringify(details),severity,p,method,status]).catch(err=>console.error('Security event logging failed:',err.message));
+ });
+ next();
+});
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 // Login protection is layered: a broad per-IP ceiling plus a tighter per-IP/account
@@ -323,9 +342,11 @@ app.get('/api/master2/security/locked-accounts',requireMaster2,async(_req,res,ne
   res.set('Cache-Control','no-store');res.json({accounts:r.rows});
  }catch(e){next(e);}
 });
-app.get('/api/master2/security/events',requireMaster2,async(_req,res,next)=>{
+app.get('/api/master2/security/events',requireMaster2,async(req,res,next)=>{
  try{
-  const r=await pool.query("SELECT e.id,e.event_type,e.ip_address,e.user_agent,e.details,e.created_at,u.email,u.role,u.display_name FROM login_security_events e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.created_at DESC LIMIT 100");
+  const p=z.object({type:z.string().max(40).optional(),severity:z.enum(['low','medium','high','critical']).optional(),limit:z.coerce.number().int().min(1).max(500).default(200)}).safeParse(req.query);
+  if(!p.success)return res.status(400).json({error:'Invalid security event filters.'});
+  const r=await pool.query("SELECT e.id,e.event_type,e.ip_address,e.user_agent,e.details,e.severity,e.request_path,e.http_method,e.status_code,e.created_at,u.email,u.role,u.display_name FROM login_security_events e LEFT JOIN users u ON u.id=e.user_id WHERE ($1::text IS NULL OR e.event_type=$1) AND ($2::text IS NULL OR e.severity=$2) ORDER BY e.created_at DESC LIMIT $3",[p.data.type||null,p.data.severity||null,p.data.limit]);
   res.set('Cache-Control','no-store');res.json({events:r.rows});
  }catch(e){next(e);}
 });
