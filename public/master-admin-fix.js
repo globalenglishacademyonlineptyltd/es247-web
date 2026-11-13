@@ -4,7 +4,7 @@
   const api=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const d=await r.json().catch(()=>({error:'Unexpected server response.'}));if(!r.ok)throw new Error(d.error||'Request failed.');return d;};
   const toast=(s,bad=false)=>{const t=q('#toast');if(!t)return;t.textContent=s;t.style.borderColor=bad?'#ff6f79':'#2de0bf';t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),3800);};
   const masterPages={dashboard:'Dashboard','add-company':'Add Company',archive:'Archived Companies',security:'Security Monitoring'};
-  const isMaster2=()=>q('#role-label')?.textContent?.trim().toLowerCase().includes('master admin 2')===true;
+  const isMaster2=()=>q('#role-label')?.textContent?.trim().toLowerCase().replace(/_/g,' ').includes('master admin 2')===true;
   let active=false;
   function isMaster(){return q('#role-label')?.textContent?.trim().toLowerCase().replace(/\s+/g,'_')==='master_admin'||q('#role-label')?.textContent?.toLowerCase().includes('master admin');}
   function masterNav(page='dashboard'){
