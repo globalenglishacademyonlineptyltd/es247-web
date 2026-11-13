@@ -32,7 +32,7 @@
     if(appStarted)return;
     appStarted=true;
     var app=document.createElement('script');
-    app.src='/app.js?v=master-dashboard-map-zoom-fix1';
+    app.src='/app.js?v=security-monitoring-fix-c51dd669';
     app.onload=function(){
       installSafeBindings();
       loadDashboardFixes();
