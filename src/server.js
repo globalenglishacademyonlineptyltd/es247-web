@@ -31,17 +31,7 @@ const loginIpLimiter = rateLimit({
  skipSuccessfulRequests:true,
  message:{error:'Too many sign-in attempts from this network. Please wait 15 minutes and try again.'}
 });
-const loginAccountIpLimiter = rateLimit({
- windowMs:15*60*1000,limit:5,standardHeaders:'draft-7',legacyHeaders:false,
- skipSuccessfulRequests:true,
- keyGenerator:req=>{
-  const account=String(req.body?.email||'').trim().toLowerCase();
-  const ip = req.ip ? ipKeyGenerator(req.ip) : 'unknown';
-  return createHash('sha256').update(ip+'|'+account).digest('hex');
- },
- message:{error:'Too many unsuccessful sign-in attempts for this account from this network. Please wait 15 minutes and try again.'}
-});
-const loginProtection = [loginIpLimiter,loginAccountIpLimiter];
+const loginProtection = [loginIpLimiter];
 const email = z.string().trim().email().max(254).transform(v=>v.toLowerCase());
 const password = z.string().min(12).max(128);
 const companyInput = z.object({
@@ -56,6 +46,7 @@ const htmlEscape = value => String(value ?? '').replace(/[&<>\"']/g,c=>({'&':'&a
 const isMaster = req => ['master_admin','master_admin_2'].includes(req.user?.role);
 const companyScope = req => req.user?.role === 'master_admin_2' ? req.companyContextId : req.user?.company_id;
 const requireMaster = (req,res,next) => isMaster(req) ? next() : res.status(403).json({error:'You do not have permission to perform this action.'});
+const requireMaster2 = (req,res,next) => req.user?.role === 'master_admin_2' ? next() : res.status(403).json({error:'Only Master Admin 2 can access security monitoring and account recovery.'});
 const requireCompanyAccess = (req,res,next) => (req.user?.role === 'controller' || (req.user?.role === 'master_admin_2' && req.companyContextId)) ? next() : res.status(403).json({error:'Select a company workspace first.'});
 async function notifyCompanyOnPanic(companyId, incident, locationText) {
  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return;
@@ -71,15 +62,79 @@ async function notifyCompanyOnPanic(companyId, incident, locationText) {
  } catch(e) { console.error('Panic notification could not be sent:',e.message); }
 }
 
+
+async function notifyMasterAdmin2Lockout(account, req) {
+  try {
+    const admins = await pool.query("SELECT email FROM users WHERE role='master_admin_2' AND active=true");
+    const recipients = [...new Set(admins.rows.map(row => row.email).filter(Boolean))];
+    if (!recipients.length || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      console.warn('ES 24/7 account lockout recorded; Master Admin 2 email notification is not configured or no active recipient exists.');
+      return;
+    }
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: recipients,
+        subject: 'ES 24/7 SECURITY ALERT — Account locked after 5 failed logins',
+        html: '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142137"><h2 style="color:#b42332">Account automatically locked</h2><p>An ES 24/7 account reached five unsuccessful password attempts and has been blocked.</p><p><strong>Account:</strong> ' + htmlEscape(account.email) + '</p><p><strong>Account type:</strong> ' + htmlEscape(account.role) + '</p><p><strong>Source IP:</strong> ' + htmlEscape(req.ip || 'Unavailable') + '</p><p><strong>Time:</strong> ' + htmlEscape(new Date().toISOString()) + '</p><p>Review this event in Master Admin 2 → Security Monitoring. Verify the account holder before resetting the password and restoring access.</p></div>'
+      })
+    });
+    if (!response.ok) console.error('Master Admin 2 lockout email notification failed with provider status ' + response.status + '.');
+  } catch (error) {
+    console.error('Master Admin 2 lockout notification could not be sent:', error.message);
+  }
+}
+async function recordFailedLogin(user, req) {
+  if (!user || !['controller', 'client'].includes(user.role)) return { locked: false, attempts: 0 };
+  const db = await pool.connect();
+  let result;
+  try {
+    await db.query('BEGIN');
+    const current = await db.query('SELECT id, email, role, failed_login_attempts, locked_at FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+    if (!current.rowCount || current.rows[0].locked_at) {
+      await db.query('ROLLBACK');
+      return { locked: true, attempts: 5 };
+    }
+    const updated = await db.query(
+      "UPDATE users SET failed_login_attempts=LEAST(failed_login_attempts+1,5), locked_at=CASE WHEN failed_login_attempts+1>=5 THEN COALESCE(locked_at,NOW()) ELSE locked_at END WHERE id=$1 RETURNING email,role,failed_login_attempts,locked_at",
+      [user.id]
+    );
+    const account = updated.rows[0];
+    await db.query(
+      "INSERT INTO login_security_events(user_id,event_type,ip_address,user_agent,details) VALUES($1,$2,$3,$4,$5::jsonb)",
+      [user.id, account.locked_at ? 'account_locked' : 'failed_login', req.ip || null, String(req.get('user-agent') || '').slice(0,500), JSON.stringify({ attempt: account.failed_login_attempts })]
+    );
+    await db.query('COMMIT');
+    result = { locked: Boolean(account.locked_at), attempts: account.failed_login_attempts, account };
+  } catch (error) {
+    await db.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    db.release();
+  }
+  if (result.locked) await notifyMasterAdmin2Lockout(result.account, req);
+  return result;
+}
+
 app.get('/api/legal/preflight',rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-7',legacyHeaders:false}),async(req,res,next)=>{try{const parsed=email.safeParse(req.query.email);if(!parsed.success)return res.status(400).json({error:'Enter a valid email address.'});const found=await pool.query("SELECT u.id FROM users u WHERE u.email=$1 AND u.role='client' AND EXISTS(SELECT 1 FROM legal_acceptances a WHERE a.user_id=u.id AND a.document_type='client_app_terms' AND a.document_version='1.2')",[parsed.data]);res.set('Cache-Control','no-store');res.json({required:found.rowCount===0});}catch(e){next(e);}});
 app.get('/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,service:'es247-web'});}catch{res.status(503).json({ok:false,service:'es247-web'});}});
 app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128),accept_terms:z.boolean().optional()}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
-  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
+  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active,failed_login_attempts,locked_at FROM users WHERE email=$1',[p.data.email]);
   const u=r.rows[0];
-  if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
+  if(u && ['client','controller'].includes(u.role) && u.locked_at)return res.status(423).json({error:'Your account has been blocked after five unsuccessful login attempts. Please contact your service provider to request a password reset and account reactivation.',code:'ACCOUNT_LOCKED'});
+  if(!u||!(await verifyPassword(p.data.password,u.password_hash))){
+   if(u && ['client','controller'].includes(u.role)){
+    const attempt=await recordFailedLogin(u,req);
+    if(attempt.locked)return res.status(423).json({error:'Your account has been blocked after five unsuccessful login attempts. Please contact your service provider to request a password reset and account reactivation.',code:'ACCOUNT_LOCKED'});
+   }
+   return res.status(401).json({error:'Incorrect email or password.'});
+  }
+  if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role==='client'){
    const accepted=await pool.query("SELECT 1 FROM legal_acceptances WHERE user_id=$1 AND document_type='client_app_terms' AND document_version='1.2'",[u.id]);
    if(!accepted.rowCount){
@@ -87,6 +142,7 @@ app.post('/api/auth/login',...loginProtection,async(req,res,next)=>{
     await pool.query("INSERT INTO legal_acceptances(user_id,document_type,document_version) VALUES($1,'client_app_terms','1.2') ON CONFLICT(user_id,document_type,document_version) DO NOTHING",[u.id]);
    }
   }
+  if(['client','controller'].includes(u.role))await pool.query('UPDATE users SET failed_login_attempts=0 WHERE id=$1 AND locked_at IS NULL',[u.id]);
   issueSession(res,u);res.set('Cache-Control','no-store');res.json({user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
@@ -94,9 +150,19 @@ app.post('/api/mobile/auth/login',...loginProtection,async(req,res,next)=>{
  try{
   const p=z.object({email,password:z.string().min(1).max(128)}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Enter a valid email address and password.'});
-  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active FROM users WHERE email=$1',[p.data.email]);
-  const u=r.rows[0];if(!u||!(await verifyPassword(p.data.password,u.password_hash)))return res.status(401).json({error:'Incorrect email or password.'});if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
+  const r=await pool.query('SELECT id,email,password_hash,role,company_id,display_name,must_change_password,active,failed_login_attempts,locked_at FROM users WHERE email=$1',[p.data.email]);
+  const u=r.rows[0];
+  if(u && ['client','controller'].includes(u.role) && u.locked_at)return res.status(423).json({error:'Your account has been blocked after five unsuccessful login attempts. Please contact your service provider to request a password reset and account reactivation.',code:'ACCOUNT_LOCKED'});
+  if(!u||!(await verifyPassword(p.data.password,u.password_hash))){
+   if(u && ['client','controller'].includes(u.role)){
+    const attempt=await recordFailedLogin(u,req);
+    if(attempt.locked)return res.status(423).json({error:'Your account has been blocked after five unsuccessful login attempts. Please contact your service provider to request a password reset and account reactivation.',code:'ACCOUNT_LOCKED'});
+   }
+   return res.status(401).json({error:'Incorrect email or password.'});
+  }
+  if(!u.active)return res.status(403).json({error:u.role==='client'?'Your account is paused. Please contact your security company.':'This account is inactive. Contact your administrator.'});if(u.company_id){const co=await pool.query('SELECT archived_at FROM companies WHERE id=$1',[u.company_id]);if(!co.rowCount||co.rows[0].archived_at)return res.status(403).json({error:'Your company account is archived or unavailable. Contact the master administrator.'});}
   if(u.role!=='client')return res.status(403).json({error:'Mobile sign-in is for client accounts only.'});
+  await pool.query('UPDATE users SET failed_login_attempts=0 WHERE id=$1 AND locked_at IS NULL',[u.id]);
   res.json({access_token:createAccessToken(u),token_type:'Bearer',expires_in:SESSION_TTL_SECONDS,user:{id:u.id,email:u.email,role:u.role,company_id:u.company_id,display_name:u.display_name,must_change_password:u.must_change_password}});
  }catch(e){next(e);}
 });
@@ -248,6 +314,31 @@ app.post('/api/company/requests/:id/status',requireCompanyAccess,async(req,res,n
  const r=await pool.query('UPDATE client_requests SET status=$1 WHERE id=$2 AND company_id=$3 RETURNING id',[p.data.status,req.params.id,companyScope(req)]);
  if(!r.rowCount)return res.status(404).json({error:'Client request not found.'});res.json({ok:true});
  }catch(e){next(e);}});
+
+
+app.get('/api/master2/security/locked-accounts',requireMaster2,async(_req,res,next)=>{
+ try{
+  const r=await pool.query("SELECT id,email,role,display_name,failed_login_attempts,locked_at,company_id FROM users WHERE role IN ('controller','client') AND locked_at IS NOT NULL ORDER BY locked_at DESC");
+  res.set('Cache-Control','no-store');res.json({accounts:r.rows});
+ }catch(e){next(e);}
+});
+app.get('/api/master2/security/events',requireMaster2,async(_req,res,next)=>{
+ try{
+  const r=await pool.query("SELECT e.id,e.event_type,e.ip_address,e.user_agent,e.details,e.created_at,u.email,u.role,u.display_name FROM login_security_events e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.created_at DESC LIMIT 100");
+  res.set('Cache-Control','no-store');res.json({events:r.rows});
+ }catch(e){next(e);}
+});
+app.post('/api/master2/security/users/:id/reset-password',requireMaster2,async(req,res,next)=>{
+ try{
+  const p=z.object({new_password:password}).safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'The temporary password must contain at least 12 characters.'});
+  const r=await pool.query("UPDATE users SET password_hash=$1,failed_login_attempts=0,locked_at=NULL,must_change_password=true WHERE id=$2 AND role IN ('controller','client') RETURNING id,email,role",[await hashPassword(p.data.new_password),req.params.id]);
+  if(!r.rowCount)return res.status(404).json({error:'Company or client account not found.'});
+  await pool.query("UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL",[r.rows[0].id]);
+  await pool.query("INSERT INTO login_security_events(user_id,event_type,details) VALUES($1,'account_unlocked',jsonb_build_object('recovered_by','master_admin_2'))",[r.rows[0].id]);
+  res.json({ok:true,message:'Password reset and account access restored. The user must change the temporary password after signing in.'});
+ }catch(e){next(e);}
+});
 
 app.use('/api',(_req,res)=>res.status(404).json({error:'API route not found.'}));
 app.get('/app/download',async(_req,res)=>{
