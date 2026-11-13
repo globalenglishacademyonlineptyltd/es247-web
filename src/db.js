@@ -8,16 +8,12 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Attach
 if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_SSL_CA) {
   throw new Error('DATABASE_SSL_CA is required in production to verify the Railway PostgreSQL certificate.');
 }
+const sslOptions = process.env.NODE_ENV === 'production'
+  ? { rejectUnauthorized: true, ca: process.env.DATABASE_SSL_CA }
+  : false;
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? {
-        // Always validate the PostgreSQL server certificate in production.
-        // Set DATABASE_SSL_CA only when Railway supplies a private CA certificate.
-        rejectUnauthorized: true,
-        ca: process.env.DATABASE_SSL_CA
-      }
-    : false,
+  ssl: sslOptions,
   max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000
 });
 
@@ -37,6 +33,14 @@ pool.query = function(text, values) {
   return rawPoolQuery(text, values);
 };
 
+const migrationPool = new Pool({
+  connectionString: process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL,
+  ssl: sslOptions,
+  max: 2, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000
+});
+
 export async function migrate() {
-  await rawPoolQuery(await fs.readFile(path.resolve(here, '../db/schema.sql'), 'utf8'));
+  // Production uses the separate privileged migration account. Normal app
+  // queries continue using the restricted runtime DATABASE_URL account.
+  await migrationPool.query(await fs.readFile(path.resolve(here, '../db/schema.sql'), 'utf8'));
 }
