@@ -1,7 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
