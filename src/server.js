@@ -102,6 +102,7 @@ async function recordFailedLogin(user, req) {
       [user.id]
     );
     const account = updated.rows[0];
+    if (account.locked_at) await db.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL', [user.id]);
     await db.query(
       "INSERT INTO login_security_events(user_id,event_type,ip_address,user_agent,details) VALUES($1,$2,$3,$4,$5::jsonb)",
       [user.id, account.locked_at ? 'account_locked' : 'failed_login', req.ip || null, String(req.get('user-agent') || '').slice(0,500), JSON.stringify({ attempt: account.failed_login_attempts })]
@@ -173,7 +174,7 @@ app.post('/api/mobile/auth/change-password',authenticate,async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'New password must contain at least 12 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
-  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
+  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false,failed_login_attempts=0 WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
   res.json({ok:true,message:'Password updated successfully.'});
  }catch(e){next(e);}
 });
@@ -191,14 +192,14 @@ app.post('/api/auth/change-password',authenticate,async(req,res,next)=>{
   if(!p.success)return res.status(400).json({error:'New password must contain at least 12 characters.'});
   const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[req.user.id]);
   if(!r.rowCount||!(await verifyPassword(p.data.current_password,r.rows[0].password_hash)))return res.status(400).json({error:'Current password is incorrect.'});
-  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
+  await pool.query('UPDATE users SET password_hash=$1,must_change_password=false,failed_login_attempts=0 WHERE id=$2',[await hashPassword(p.data.new_password),req.user.id]);
   res.json({ok:true});
  }catch(e){next(e);}
 });
 app.post('/api/auth/forgot-password',limiter,async(req,res,next)=>{
  try{
   const p=z.object({email}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Enter a valid email address.'});
-  const found=await pool.query('SELECT id,email,display_name FROM users WHERE email=$1 AND active=true',[p.data.email]);
+  const found=await pool.query('SELECT id,email,display_name FROM users WHERE email=$1 AND active=true AND locked_at IS NULL',[p.data.email]);
   if(found.rowCount&&process.env.RESEND_API_KEY&&process.env.RESEND_FROM_EMAIL&&process.env.APP_BASE_URL){
    const u=found.rows[0],token=randomBytes(32).toString('base64url'),hash=createHash('sha256').update(token).digest('hex');
    await pool.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL',[u.id]);
@@ -217,9 +218,9 @@ app.post('/api/auth/reset-password',limiter,async(req,res,next)=>{
   const p=z.object({token:z.string().min(20).max(200),new_password:password}).safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'The reset link or new password is invalid.'});
   const tokenHash=createHash('sha256').update(p.data.token).digest('hex');await db.query('BEGIN');
-  const t=await db.query('SELECT id,user_id FROM password_reset_tokens WHERE token_hash=$1 AND used_at IS NULL AND expires_at>NOW() FOR UPDATE',[tokenHash]);
+  const t=await db.query('SELECT t.id,t.user_id FROM password_reset_tokens t JOIN users u ON u.id=t.user_id WHERE t.token_hash=$1 AND t.used_at IS NULL AND t.expires_at>NOW() AND u.locked_at IS NULL FOR UPDATE OF t,u',[tokenHash]);
   if(!t.rowCount){await db.query('ROLLBACK');return res.status(400).json({error:'This reset link is invalid or expired. Request a new one.'});}
-  await db.query('UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2',[await hashPassword(p.data.new_password),t.rows[0].user_id]);
+  await db.query('UPDATE users SET password_hash=$1,must_change_password=false,failed_login_attempts=0 WHERE id=$2',[await hashPassword(p.data.new_password),t.rows[0].user_id]);
   await db.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL',[t.rows[0].user_id]);
   await db.query('COMMIT');res.json({ok:true,message:'Password reset successfully. You can now sign in.'});
  }catch(e){await db.query('ROLLBACK').catch(()=>{});next(e);}finally{db.release();}
