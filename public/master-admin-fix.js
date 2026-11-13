@@ -3,12 +3,13 @@
   const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const api=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const d=await r.json().catch(()=>({error:'Unexpected server response.'}));if(!r.ok)throw new Error(d.error||'Request failed.');return d;};
   const toast=(s,bad=false)=>{const t=q('#toast');if(!t)return;t.textContent=s;t.style.borderColor=bad?'#ff6f79':'#2de0bf';t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),3800);};
-  const masterPages={dashboard:'Dashboard','add-company':'Add Company',archive:'Archived Companies'};
+  const masterPages={dashboard:'Dashboard','add-company':'Add Company',archive:'Archived Companies',security:'Security Monitoring'};
+  const isMaster2=()=>q('#role-label')?.textContent?.trim().toLowerCase().includes('master admin 2')===true;
   let active=false;
   function isMaster(){return q('#role-label')?.textContent?.trim().toLowerCase().replace(/\s+/g,'_')==='master_admin'||q('#role-label')?.textContent?.toLowerCase().includes('master admin');}
   function masterNav(page='dashboard'){
     const nav=q('#nav');if(!nav)return;
-    const desired=[['dashboard','Dashboard'],['add-company','Add Company'],['archive','Archived Companies']];
+    const desired=[['dashboard','Dashboard'],['add-company','Add Company'],['archive','Archived Companies']];if(isMaster2())desired.push(['security','Security Monitoring']);
     const current=[...nav.querySelectorAll('[data-master-page]')].map(b=>[b.dataset.masterPage,b.textContent.trim()]);
     if(JSON.stringify(current)!==JSON.stringify(desired)) nav.innerHTML=desired.map(([id,label])=>`<button data-master-page="${id}" class="${page===id?'active':''}"><span>${label}</span></button>`).join('');
     else [...nav.querySelectorAll('[data-master-page]')].forEach(b=>b.classList.toggle('active',b.dataset.masterPage===page));
@@ -25,6 +26,7 @@
       if(page==='dashboard')return masterDashboard(host);
       if(page==='add-company')return masterAddCompany(host);
       if(page==='archive')return masterArchive(host);
+      if(page==='security'&&isMaster2())return masterSecurity(host);
     }catch(e){host.innerHTML=`<div class="card"><h2>Unable to load this page</h2><p class="notice">${escapeHtml(e.message)}</p><button class="btn outline" id="master-retry">Try again</button></div>`;q('#master-retry')?.addEventListener('click',()=>masterNavigate(page));}
   }
   async function masterDashboard(host){
@@ -54,7 +56,23 @@
     qa('[data-master-restore]').forEach(b=>b.onclick=async()=>{try{await api('/api/master/companies/'+b.dataset.masterRestore,{method:'PATCH',body:JSON.stringify({archived:false})});toast('Company restored.');masterNavigate('archive');}catch(e){toast(e.message,true);}});
     qa('[data-master-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Permanently delete this archived company if it has no records?'))return;try{await api('/api/master/companies/'+b.dataset.masterDelete,{method:'DELETE'});toast('Company deleted.');masterNavigate('archive');}catch(e){toast(e.message,true);}});
   }
-  function enforce(){if(!isMaster())return;const title=q('#page-title')?.textContent?.trim();if(!active||!['Dashboard','Add Company','Archived Companies'].includes(title)){active=true;masterNavigate('dashboard');return;}masterNav(title==='Add Company'?'add-company':title==='Archived Companies'?'archive':'dashboard');}
+
+  async function masterSecurity(host){
+    const [locked,events]=await Promise.all([api('/api/master2/security/locked-accounts'),api('/api/master2/security/events')]);
+    const accounts=Array.isArray(locked.accounts)?locked.accounts:[];
+    const history=Array.isArray(events.events)?events.events:[];
+    host.innerHTML='<div class="card"><p class="eyebrow">MASTER ADMIN 2 ONLY</p><h2>Security Monitoring</h2><p class="muted">Review failed login attempts, locked accounts and recovery actions. Master Admin 1 does not have access to this section.</p><div class="table-wrap"><table><thead><tr><th>Account</th><th>Type</th><th>Failed attempts</th><th>Locked at</th><th>Recovery</th></tr></thead><tbody>'+(accounts.length?accounts.map(x=>'<tr><td><strong>'+escapeHtml(x.display_name||x.email)+'</strong><br><small>'+escapeHtml(x.email)+'</small></td><td>'+escapeHtml(x.role)+'</td><td>'+Number(x.failed_login_attempts||0)+'/5</td><td>'+escapeHtml(window.date(x.locked_at))+'</td><td><button class="btn primary small" data-security-reset="'+escapeHtml(x.id)+'">Reset password &amp; unlock</button></td></tr>').join(''):'<tr><td colspan="5" class="empty">No company or client accounts are currently locked.</td></tr>')+'</tbody></table></div><p class="tiny">Recovery requires a new temporary password (at least 12 characters). The user must change it after signing in.</p></div><div class="card"><h2>Recent security events</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Account</th><th>IP address</th></tr></thead><tbody>'+(history.length?history.map(x=>'<tr><td>'+escapeHtml(window.date(x.created_at))+'</td><td>'+escapeHtml(x.event_type.replaceAll('_',' '))+'</td><td>'+escapeHtml(x.email||'Deleted account')+'</td><td>'+escapeHtml(x.ip_address||'—')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">No security events recorded.</td></tr>')+'</tbody></table></div><p class="tiny">The log records failed sign-ins, automatic lockouts and account recovery. Passwords and session tokens are never recorded.</p></div>';
+    qa('[data-security-reset]').forEach(button=>button.onclick=async()=>{
+      const temporary=prompt('Enter a new temporary password for this account (at least 12 characters). The user must change it after signing in.');
+      if(temporary===null)return;
+      if(temporary.length<12){toast('The temporary password must contain at least 12 characters.',true);return;}
+      if(!confirm('Reset this account password and restore access?'))return;
+      try{await api('/api/master2/security/users/'+button.dataset.securityReset+'/reset-password',{method:'POST',body:JSON.stringify({new_password:temporary})});toast('Password reset and account unlocked.');masterNavigate('security');}
+      catch(error){toast(error.message,true);}
+    });
+  }
+
+  function enforce(){if(!isMaster())return;const title=q('#page-title')?.textContent?.trim();const allowed=['Dashboard','Add Company','Archived Companies',...(isMaster2()?['Security Monitoring']:[])];if(!active||!allowed.includes(title)){active=true;masterNavigate('dashboard');return;}masterNav(title==='Add Company'?'add-company':title==='Archived Companies'?'archive':title==='Security Monitoring'&&isMaster2()?'security':'dashboard');}
   const observer=new MutationObserver(()=>{if(isMaster())setTimeout(enforce,0);});
   observer.observe(document.body,{subtree:true,childList:true});
   setTimeout(enforce,250);
