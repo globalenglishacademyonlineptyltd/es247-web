@@ -185,3 +185,22 @@ ON CONFLICT(migration_key) DO NOTHING;
 
 -- Company confirmation is required before Master Admin 2 can permanently delete an archived client.
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS permanent_delete_requested_at TIMESTAMPTZ;
+
+
+-- Persistent five-attempt lockout for company and client sign-in accounts.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS users_locked_accounts_idx ON users(locked_at DESC) WHERE locked_at IS NOT NULL;
+
+-- Security history is retained for Master Admin 2 review; passwords and tokens are never stored here.
+CREATE TABLE IF NOT EXISTS login_security_events (
+ id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+ event_type TEXT NOT NULL CHECK(event_type IN ('failed_login','account_locked','account_unlocked')),
+ ip_address TEXT,
+ user_agent TEXT,
+ details JSONB NOT NULL DEFAULT '{}'::jsonb,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS login_security_events_created_idx ON login_security_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS login_security_events_user_idx ON login_security_events(user_id,created_at DESC);
