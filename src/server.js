@@ -35,8 +35,8 @@ app.use((req,res,next)=>{
   const severity=probePath||status===429?'high':status===401||status===403?'medium':'low';
   const eventType=probePath?'url_probe':status===429?'rate_limited':status===401?'unauthorised_request':status===403?'forbidden_request':status===404?'not_found_request':status===423?'locked_account_request':authPath?'authentication_activity':'security_activity';
   const details={method,status_code:status,duration_ms:Date.now()-started,path:p,referer:String(req.get('referer')||'').slice(0,500)};
-  void pool.query("INSERT INTO login_security_events(event_type,ip_address,user_agent,details,severity,request_path,http_method,status_code) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8)",
-   [eventType,req.ip||null,String(req.get('user-agent')||'').slice(0,500),JSON.stringify(details),severity,p,method,status]).catch(err=>console.error('Security event logging failed:',err.message));
+  void pool.query("INSERT INTO login_security_events(user_id,event_type,ip_address,user_agent,details,severity,request_path,http_method,status_code) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)",
+   [req.user?.id||null,eventType,req.ip||null,String(req.get('user-agent')||'').slice(0,500),JSON.stringify(details),severity,p,method,status]).catch(err=>console.error('Security event logging failed:',err.message));
  });
  next();
 });
