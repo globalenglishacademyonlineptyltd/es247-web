@@ -79,6 +79,7 @@ app.post('/api/public/applications',publicApplicationLimiter,async(req,res,next)
  }catch(e){next(e);}
 });
 
+app.get('/health',(_req,res)=>res.status(200).json({ok:true,service:'es247-web'}));
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 // Login protection is layered: a broad per-IP ceiling plus a tighter per-IP/account
