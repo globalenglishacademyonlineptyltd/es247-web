@@ -1,0 +1,49 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Find a security company covering your area and apply directly to that company."><title>Contact / Apply | ES 24/7</title><link rel="stylesheet" href="/site.css"></head><body><div class="topbar"><div class="wrap"><span>Response • Safety • Support • Always On</span><span>Emergency Service 24/7 | South Africa</span></div></div><header class="nav"><div class="wrap navin"><a class="brand" href="/"><img src="/ChatGPT%20Image%20Oct%2028,%202026,%2012_54_29%20PM.png" alt="Official ES 24/7 logo"><span>EMERGENCY SERVICE <b>24/7</b></span></a><nav class="links"><a href="/about.html">About</a><a href="/services.html">Services</a><a href="/client-app.html">Client App</a><a href="/faq.html">FAQ</a><a href="/terms.html">Terms</a><a href="/contact.html" class="cta">Contact / Apply</a><a href="/portal.html">Company Login</a></nav></div></header><main><section class="section"><div class="wrap"><div class="section-head"><div class="eyebrow">Find your security company</div><h2>Who covers your area?</h2><p class="lead">Choose your location to find participating providers. Only the selected company's registered email address is shown; company telephone numbers are not published here.</p></div><div class="form-shell"><div class="form-grid">
+<div class="field"><label for="province">PROVINCE</label><select id="province"><option value="">Select province</option><option>Eastern Cape</option><option>Free State</option><option>Gauteng</option><option>KwaZulu-Natal</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Northern Cape</option><option>Western Cape</option></select></div>
+<div class="field"><label for="town">TOWN / CITY</label><input id="town" placeholder="e.g. Pretoria" autocomplete="address-level2"></div>
+<div class="field full"><label for="area">SUBURB / AREA</label><input id="area" placeholder="e.g. Centurion, Hatfield, Montana" autocomplete="address-level3"></div>
+<div class="field full"><button class="btn" id="searchCompanies" type="button">SEARCH COMPANIES IN MY AREA</button></div>
+</div><div id="companyStatus" class="status" role="status"></div><div id="companyList" class="company-list"></div>
+<div id="applicationWrap" hidden><hr style="border:0;border-top:1px solid #2c4665;margin:24px 0"><h3 id="selectedCompanyTitle">Apply to selected company</h3><p class="small">Your application will be emailed directly to this company. Its phone number is not displayed on this website.</p><form id="applicationForm"><input type="hidden" id="companyId" name="company_id"><div class="form-grid">
+<div class="field"><label for="fullName">FULL NAME *</label><input id="fullName" required maxlength="160" autocomplete="name"></div>
+<div class="field"><label for="clientEmail">EMAIL ADDRESS *</label><input id="clientEmail" type="email" required maxlength="254" autocomplete="email"></div>
+<div class="field"><label for="clientPhone">YOUR CONTACT NUMBER *</label><input id="clientPhone" type="tel" required maxlength="40" autocomplete="tel"></div>
+<div class="field"><label for="streetAddress">STREET ADDRESS *</label><input id="streetAddress" required maxlength="500" autocomplete="street-address"></div>
+<div class="field"><label for="appProvince">PROVINCE *</label><input id="appProvince" readonly required></div>
+<div class="field"><label for="appTown">TOWN / CITY *</label><input id="appTown" readonly required></div>
+<div class="field full"><label for="appArea">SUBURB / AREA *</label><input id="appArea" readonly required></div>
+<div class="field full"><label for="message">ADDITIONAL INFORMATION (OPTIONAL)</label><textarea id="message" rows="4" maxlength="3000" placeholder="Tell the company anything else it should know."></textarea></div>
+<div class="field full"><label style="display:flex;gap:10px;align-items:flex-start;font-weight:600"><input id="consent" type="checkbox" required style="width:auto;margin-top:4px"> I confirm that the information supplied is accurate and understand that this application will be sent directly to the selected company for its review.</label></div>
+<div class="field full"><button class="btn" id="submitApplication" type="submit">SEND APPLICATION TO SELECTED COMPANY</button></div>
+</div><div id="applicationStatus" class="status" role="status"></div></form></div></div></div></section></main><footer class="footer"><div class="wrap footer-grid"><div><strong>ES 24/7 — Emergency Service 24/7</strong><div class="small">Response • Safety • Support • Always On</div></div><div><a href="/terms.html">Client Terms</a> · <a href="/faq.html">FAQs</a> · <a href="/contact.html">Find a Company / Apply</a> · <a href="/portal.html">Company Login</a></div><div class="small">© <span id="year"></span> ES 24/7. All rights reserved.</div></div></footer><script>
+const $=id=>document.getElementById(id);$('year').textContent=new Date().getFullYear();
+let chosen=null;
+function showStatus(el,msg,error=false){el.textContent=msg;el.className='status'+(error?' error':'');el.style.display='block'}
+$('searchCompanies').addEventListener('click',async()=>{
+ const area=$('area').value.trim(),town=$('town').value.trim(),province=$('province').value;
+ $('companyList').innerHTML='';$('applicationWrap').hidden=true;
+ if(!province||!town||!area){showStatus($('companyStatus'),'Please select a province and enter your town and suburb or area.',true);return}
+ showStatus($('companyStatus'),'Searching participating companies…');
+ try{
+  const res=await fetch('/api/public/companies?area='+encodeURIComponent(area));
+  const data=await res.json();if(!res.ok)throw new Error(data.error||'Search failed.');
+  $('companyList').innerHTML='';
+  if(!data.companies.length){showStatus($('companyStatus'),'No participating company is currently listed for this area. Try a nearby suburb or town.',true);return}
+  showStatus($('companyStatus'),data.companies.length+' participating company/companies found for your area.');
+  data.companies.forEach(c=>{
+   const card=document.createElement('div');card.className='company';
+   const info=document.createElement('div');const name=document.createElement('b');name.textContent=c.name;const email=document.createElement('span');email.className='email';email.textContent=c.email;const cov=document.createElement('small');cov.textContent='Coverage: '+c.covering_areas;info.append(name,document.createElement('br'),email,document.createElement('br'),cov);
+   const btn=document.createElement('button');btn.className='btn secondary';btn.type='button';btn.textContent='SELECT COMPANY';btn.addEventListener('click',()=>selectCompany(c,province,town,area));card.append(info,btn);$('companyList').append(card);
+  });
+ }catch(e){showStatus($('companyStatus'),e.message||'Unable to search companies.',true)}
+});
+function selectCompany(c,province,town,area){chosen=c;$('companyId').value=c.id;$('selectedCompanyTitle').textContent='Apply to '+c.name;$('appProvince').value=province;$('appTown').value=town;$('appArea').value=area;$('applicationWrap').hidden=false;$('applicationStatus').style.display='none';$('applicationWrap').scrollIntoView({behavior:'smooth',block:'start'})}
+$('applicationForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(!chosen)return;
+ const button=$('submitApplication');button.disabled=true;button.textContent='SENDING…';
+ const payload={company_id:chosen.id,full_name:$('fullName').value,email:$('clientEmail').value,phone:$('clientPhone').value,province:$('appProvince').value,town:$('appTown').value,area:$('appArea').value,street_address:$('streetAddress').value,message:$('message').value,consent:$('consent').checked};
+ try{const r=await fetch('/api/public/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Application could not be sent.');showStatus($('applicationStatus'),d.message);$('applicationForm').reset();$('companyId').value=chosen.id;$('appProvince').value=payload.province;$('appTown').value=payload.town;$('appArea').value=payload.area;}
+ catch(err){showStatus($('applicationStatus'),err.message||'Application could not be sent. Please try again.',true)}
+ finally{button.disabled=false;button.textContent='SEND APPLICATION TO SELECTED COMPANY'}
+});
+</script></body></html>
