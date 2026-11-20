@@ -40,6 +40,45 @@ app.use((req,res,next)=>{
  });
  next();
 });
+
+const publicApplicationLimiter = rateLimit({windowMs:60*60*1000,limit:8,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many applications from this connection. Please try again later.'}});
+app.get('/api/public/companies',async(req,res,next)=>{
+ try{
+  const area=String(req.query.area||'').trim().slice(0,120);
+  if(area.length<2)return res.status(400).json({error:'Choose a town or area first.'});
+  const result=await pool.query("SELECT id,registered_name,contact_email,covering_areas FROM companies WHERE archived_at IS NULL AND LOWER(covering_areas) LIKE $1 ORDER BY registered_name LIMIT 100",['%'+area.toLowerCase()+'%']);
+  res.set('Cache-Control','no-store');
+  res.json({companies:result.rows.map(c=>({id:c.id,name:c.registered_name,email:c.contact_email,covering_areas:c.covering_areas}))});
+ }catch(e){next(e);}
+});
+app.post('/api/public/applications',publicApplicationLimiter,async(req,res,next)=>{
+ try{
+  const p=z.object({
+   company_id:z.coerce.number().int().positive(),
+   full_name:z.string().trim().min(2).max(160),
+   email:z.string().trim().email().max(254),
+   phone:z.string().trim().min(5).max(40),
+   province:z.string().trim().min(2).max(80),
+   town:z.string().trim().min(2).max(100),
+   area:z.string().trim().min(2).max(120),
+   street_address:z.string().trim().min(5).max(500),
+   message:z.string().trim().max(3000).optional().default(''),
+   consent:z.literal(true)
+  }).safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Please complete all required fields and accept the application notice.'});
+  if(!process.env.RESEND_API_KEY||!process.env.RESEND_FROM_EMAIL)return res.status(503).json({error:'The application email service is temporarily unavailable. Please try again later.'});
+  const found=await pool.query("SELECT id,registered_name,contact_email,covering_areas FROM companies WHERE id=$1 AND archived_at IS NULL",[p.data.company_id]);
+  const company=found.rows[0];
+  if(!company)return res.status(404).json({error:'The selected company is no longer available. Please search again.'});
+  const d=p.data;
+  const safe=htmlEscape;
+  const html='<div style="font-family:Arial,sans-serif;color:#15243b;line-height:1.65"><h2>New ES 24/7 Client Application</h2><p>A prospective client has selected your company through the ES 24/7 website.</p><table cellpadding="7" cellspacing="0" style="border-collapse:collapse"><tr><td><b>Full name</b></td><td>'+safe(d.full_name)+'</td></tr><tr><td><b>Email</b></td><td>'+safe(d.email)+'</td></tr><tr><td><b>Client phone</b></td><td>'+safe(d.phone)+'</td></tr><tr><td><b>Province</b></td><td>'+safe(d.province)+'</td></tr><tr><td><b>Town</b></td><td>'+safe(d.town)+'</td></tr><tr><td><b>Area</b></td><td>'+safe(d.area)+'</td></tr><tr><td><b>Street address</b></td><td>'+safe(d.street_address)+'</td></tr></table><h3>Additional information</h3><p>'+safe(d.message||'None supplied').replace(/\n/g,'<br>')+'</p><p>Please contact the applicant directly using the details supplied above.</p></div>';
+  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.RESEND_FROM_EMAIL,to:[company.contact_email],reply_to:d.email,subject:'New ES 24/7 application — '+d.full_name,html,text:'New ES 24/7 application for '+company.registered_name+'\nName: '+d.full_name+'\nEmail: '+d.email+'\nPhone: '+d.phone+'\nProvince: '+d.province+'\nTown: '+d.town+'\nArea: '+d.area+'\nAddress: '+d.street_address+'\nAdditional information: '+(d.message||'None')})});
+  if(!response.ok){console.error('ES24/7 company application email failed with provider status '+response.status);return res.status(502).json({error:'We could not deliver your application to the selected company. Please try again shortly.'});}
+  res.status(202).json({ok:true,message:'Your application has been sent directly to '+company.registered_name+'.'});
+ }catch(e){next(e);}
+});
+
 app.use(express.static(path.resolve(here,'../public'),{index:'index.html',maxAge:0}));
 const limiter = rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Wait 15 minutes and try again.'}});
 // Login protection is layered: a broad per-IP ceiling plus a tighter per-IP/account
